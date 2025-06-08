@@ -1,0 +1,20 @@
+---
+- name: Gather Windows VM System Info
+  hosts: windows_vm1
+  gather_facts: true
+  tasks:
+
+    - name: Print CPU Info
+      debug:
+        var: ansible_facts.processor
+
+    - name: Print Memory Info
+      debug:
+        var: ansible_facts.memtotal_mb
+
+    - name: Gather disk facts
+      community.windows.win_disk_facts:
+
+    - name: Print disk facts
+      debug:
+        var: ansible_facts.disks
