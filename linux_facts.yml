@@ -1,6 +1,6 @@
 ---
 - name: Gather Linux VM System Info
-  hosts: 10.50.20.62
+  hosts: linux
   gather_facts: yes
   tasks:
     - name: Print CPU Info
