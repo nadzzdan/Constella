@@ -1,7 +1,0 @@
----
-- hosts: 10.50.20.62
-  become: true
-  tasks:
-    - name: Print OS info
-      ansible.builtin.package:
-        name: apache2
