@@ -1,5 +1,5 @@
 ---
-- hosts: my_servers
+- hosts: 10.50.20.62
   become: true
   tasks:
     - name: Print OS info
