@@ -1,0 +1,52 @@
+---
+- name: Get system stats for Linux
+  hosts: linux
+  gather_facts: true
+  tasks:
+    - name: Get memory usage
+      ansible.builtin.shell: free -m
+      register: mem
+
+    - name: Get CPU load
+      ansible.builtin.shell: uptime
+      register: cpu
+
+    - name: Get disk usage
+      ansible.builtin.shell: df -h /
+      register: disk
+
+    - name: Display results
+      ansible.builtin.debug:
+        msg: |
+          MEM:
+          {{ mem.stdout }}
+          CPU:
+          {{ cpu.stdout }}
+          DISK:
+          {{ disk.stdout }}
+
+- name: Get system stats for Windows
+  hosts: windows
+  gather_facts: false
+  tasks:
+    - name: Get memory usage
+      win_shell: Get-WmiObject Win32_OperatingSystem | Select-Object TotalVisibleMemorySize,FreePhysicalMemory
+      register: mem
+
+    - name: Get CPU usage
+      win_shell: Get-WmiObject Win32_Processor | Select-Object LoadPercentage
+      register: cpu
+
+    - name: Get disk usage
+      win_shell: Get-WmiObject Win32_LogicalDisk -Filter "DriveType=3" | Select-Object DeviceID,FreeSpace,Size
+      register: disk
+
+    - name: Display results
+      ansible.builtin.debug:
+        msg: |
+          MEM:
+          {{ mem.stdout }}
+          CPU:
+          {{ cpu.stdout }}
+          DISK:
+          {{ disk.stdout }}
