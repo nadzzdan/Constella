@@ -1,6 +1,6 @@
 ---
 - name: Gather Windows VM System Info
-  hosts: windows_vm1
+  hosts: 10.50.20.63
   gather_facts: true
   tasks:
 
