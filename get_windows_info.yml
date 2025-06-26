@@ -11,6 +11,9 @@
       debug:
         msg: "{{ ansible_memtotal_mb }} MB"
 
+    - name: Gather disk info
+      win_disk_facts:
+
     - name: Display Disk Info
       debug:
-        msg: "{{ ansible_mounts }}"
+        var: ansible_disks
