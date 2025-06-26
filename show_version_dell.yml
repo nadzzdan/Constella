@@ -4,8 +4,7 @@
   gather_facts: no
   tasks:
     - name: Run "show version"
-      ansible.netcommon.cli_command:
-        command: show version
+      raw: show version
       register: version_output
 
     - name: Display output
