@@ -5,7 +5,7 @@
   tasks:
     - name: Run "enable" then "show version"
       raw:
-        show version
+        show version 1
         exit
         exit
       register: version_output
