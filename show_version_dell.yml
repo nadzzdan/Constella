@@ -6,7 +6,6 @@
     - name: Run "enable" then "show version"
       raw:
         show version
-        exit
       register: version_output
 
     - name: Show output
