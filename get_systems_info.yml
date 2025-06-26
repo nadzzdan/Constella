@@ -1,0 +1,16 @@
+---
+- name: Gather system information
+  hosts: linux_vm
+  gather_facts: true
+  tasks:
+    - name: Show CPU info
+      debug:
+        msg: "{{ ansible_processor }}"
+
+    - name: Show memory info
+      debug:
+        msg: "{{ ansible_memtotal_mb }} MB total"
+
+    - name: Show disk info
+      debug:
+        msg: "{{ ansible_mounts }}"
