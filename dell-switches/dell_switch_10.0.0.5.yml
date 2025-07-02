@@ -1,0 +1,95 @@
+---
+- name: Dell Access Switch Management - 10.0.0.5
+  hosts: dell_switch_10_0_0_5
+  gather_facts: no
+  connection: ansible.netcommon.network_cli
+  vars:
+    ansible_network_os: dellos10
+    ansible_user: janestrada
+    ansible_password: Love2eat
+    ansible_connection: ansible.netcommon.network_cli
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+    
+  tasks:
+    - name: Gather Dell switch facts
+      dellos10_facts:
+        gather_subset: all
+      register: switch_facts
+      
+    - name: Display switch information
+      debug:
+        msg: |
+          Switch Hostname: {{ switch_facts.ansible_facts.ansible_net_hostname }}
+          Model: {{ switch_facts.ansible_facts.ansible_net_model }}
+          Version: {{ switch_facts.ansible_facts.ansible_net_version }}
+          Serial Number: {{ switch_facts.ansible_facts.ansible_net_serialnum }}
+          Uptime: {{ switch_facts.ansible_facts.ansible_net_uptime }}
+          
+    - name: Get interface status
+      dellos10_command:
+        commands:
+          - show interface status
+      register: interface_status
+      
+    - name: Display interface information
+      debug:
+        var: interface_status.stdout_lines
+        
+    - name: Get VLAN information
+      dellos10_command:
+        commands:
+          - show vlan
+      register: vlan_info
+      
+    - name: Display VLAN configuration
+      debug:
+        var: vlan_info.stdout_lines
+        
+    - name: Get running configuration summary
+      dellos10_command:
+        commands:
+          - show running-config | include interface
+          - show ip interface brief
+      register: config_summary
+      
+    - name: Save switch information to file
+      copy:
+        content: |
+          Dell Access Switch Report - 10.0.0.5
+          Generated: {{ ansible_date_time.iso8601 }}
+          ===============================================
+          
+          Switch Details:
+          - Hostname: {{ switch_facts.ansible_facts.ansible_net_hostname | default('N/A') }}
+          - Model: {{ switch_facts.ansible_facts.ansible_net_model | default('N/A') }}
+          - Version: {{ switch_facts.ansible_facts.ansible_net_version | default('N/A') }}
+          - Serial: {{ switch_facts.ansible_facts.ansible_net_serialnum | default('N/A') }}
+          - Uptime: {{ switch_facts.ansible_facts.ansible_net_uptime | default('N/A') }}
+          
+          Interface Status:
+          {% for line in interface_status.stdout_lines[0] %}
+          {{ line }}
+          {% endfor %}
+          
+          VLAN Information:
+          {% for line in vlan_info.stdout_lines[0] %}
+          {{ line }}
+          {% endfor %}
+          
+          Configuration Summary:
+          {% for output in config_summary.stdout_lines %}
+          {% for line in output %}
+          {{ line }}
+          {% endfor %}
+          
+          {% endfor %}
+        dest: "/tmp/dell-switch-10.0.0.5-report-{{ ansible_date_time.date }}.txt"
+      delegate_to: localhost
+      
+    - name: Backup running configuration
+      dellos10_config:
+        backup: yes
+        backup_options:
+          filename: "dell-switch-10.0.0.5-backup-{{ ansible_date_time.date }}.cfg"
+          dir_path: "/tmp/"
+      delegate_to: localhost

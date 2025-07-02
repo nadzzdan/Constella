@@ -1,0 +1,86 @@
+---
+- name: Dell Access Switch VLAN Information - 10.0.0.5
+  hosts: dell_switch_10_0_0_5
+  gather_facts: no
+  connection: ansible.netcommon.network_cli
+  vars:
+    ansible_user: janestrada
+    ansible_password: Love2eat
+    ansible_connection: ansible.netcommon.network_cli
+    ansible_network_os: dellos10
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+    ansible_command_timeout: 30
+    
+  tasks:
+    - name: Get VLAN information
+      ansible.netcommon.cli_command:
+        command: show vlan
+      register: vlan_output
+      
+    - name: Get VLAN brief information
+      ansible.netcommon.cli_command:
+        command: show vlan brief
+      register: vlan_brief
+      ignore_errors: yes
+      
+    - name: Get interface VLAN assignments
+      ansible.netcommon.cli_command:
+        command: show interface switchport
+      register: switchport_info
+      ignore_errors: yes
+      
+    - name: Display VLAN information
+      debug:
+        msg: |
+          === VLAN Configuration on Dell Switch 10.0.0.5 ===
+          
+          VLANs:
+          {{ vlan_output.stdout }}
+          
+    - name: Display VLAN brief if available
+      debug:
+        msg: |
+          === VLAN Brief Information ===
+          {{ vlan_brief.stdout }}
+      when: vlan_brief.stdout is defined
+      
+    - name: Display switchport information
+      debug:
+        msg: |
+          === Interface VLAN Assignments ===
+          {{ switchport_info.stdout }}
+      when: switchport_info.stdout is defined
+      
+    - name: Save VLAN report to file
+      copy:
+        content: |
+          Dell Access Switch VLAN Report
+          Switch IP: 10.0.0.5
+          Username: janestrada
+          Generated: {{ ansible_date_time.iso8601 }}
+          ==========================================
+          
+          VLAN Configuration:
+          {{ vlan_output.stdout }}
+          
+          {% if vlan_brief.stdout is defined %}
+          VLAN Brief Information:
+          {{ vlan_brief.stdout }}
+          
+          {% endif %}
+          {% if switchport_info.stdout is defined %}
+          Interface VLAN Assignments:
+          {{ switchport_info.stdout }}
+          
+          {% endif %}
+        dest: "/tmp/dell-switch-vlans-10.0.0.5-{{ ansible_date_time.date }}.txt"
+      delegate_to: localhost
+      
+    - name: Summary of VLAN discovery
+      debug:
+        msg: |
+          === VLAN Discovery Summary ===
+          Switch: 10.0.0.5
+          User: janestrada
+          VLAN data retrieved successfully
+          Report saved to: /tmp/dell-switch-vlans-10.0.0.5-{{ ansible_date_time.date }}.txt

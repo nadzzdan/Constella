@@ -1,0 +1,71 @@
+---
+- name: Dell Switch VLAN Information via SSH - 10.0.0.5
+  hosts: dell_switch_10_0_0_5
+  gather_facts: no
+  vars:
+    ansible_user: janestrada
+    ansible_password: Love2eat
+    ansible_connection: ssh
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
+    
+  tasks:
+    - name: Show VLANs on Dell switch
+      shell: show vlan
+      register: show_vlans
+      
+    - name: Show VLAN brief information
+      shell: show vlan brief
+      register: vlan_brief
+      ignore_errors: yes
+      
+    - name: Show interface switchport information
+      shell: show interface switchport
+      register: switchport_info
+      ignore_errors: yes
+      
+    - name: Display VLAN information
+      debug:
+        msg: |
+          === Dell Switch 10.0.0.5 VLAN Information ===
+          
+          VLANs:
+          {{ show_vlans.stdout }}
+          
+    - name: Display VLAN brief if available
+      debug:
+        msg: |
+          === VLAN Brief ===
+          {{ vlan_brief.stdout }}
+      when: vlan_brief is succeeded
+      
+    - name: Display switchport information if available
+      debug:
+        msg: |
+          === Switchport Information ===
+          {{ switchport_info.stdout }}
+      when: switchport_info is succeeded
+      
+    - name: Save VLAN report
+      copy:
+        content: |
+          Dell Access Switch VLAN Report
+          Switch IP: 10.0.0.5
+          Username: janestrada
+          Generated: {{ ansible_date_time.iso8601 }}
+          ==========================================
+          
+          VLAN Configuration:
+          {{ show_vlans.stdout }}
+          
+          {% if vlan_brief is succeeded %}
+          VLAN Brief Information:
+          {{ vlan_brief.stdout }}
+          
+          {% endif %}
+          {% if switchport_info is succeeded %}
+          Switchport Information:
+          {{ switchport_info.stdout }}
+          
+          {% endif %}
+        dest: "/tmp/dell-switch-vlans-ssh-10.0.0.5-{{ ansible_date_time.date }}.txt"
+      delegate_to: localhost

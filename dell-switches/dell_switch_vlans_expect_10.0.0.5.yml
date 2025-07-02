@@ -1,0 +1,59 @@
+---
+- name: Dell Switch - Show VLANs Using Expect
+  hosts: localhost
+  gather_facts: no
+  vars:
+    switch_ip: "10.0.0.5"
+    switch_user: "janestrada"
+    switch_password: "Love2eat"
+  tasks:
+    - name: Connect to Dell switch and show VLANs
+      ansible.builtin.expect:
+        command: ssh -o StrictHostKeyChecking=no {{ switch_user }}@{{ switch_ip }}
+        responses:
+          "password:": "{{ switch_password }}"
+          "Password:": "{{ switch_password }}"
+          ".*>": "enable"
+          ".*#": "show vlan"
+        timeout: 30
+      register: vlan_output
+
+    - name: Show VLAN output
+      debug:
+        var: vlan_output.stdout_lines
+        
+    - name: Get VLAN brief information
+      ansible.builtin.expect:
+        command: ssh -o StrictHostKeyChecking=no {{ switch_user }}@{{ switch_ip }}
+        responses:
+          "password:": "{{ switch_password }}"
+          "Password:": "{{ switch_password }}"
+          ".*>": "enable"
+          ".*#": "show vlan brief"
+        timeout: 30
+      register: vlan_brief_output
+      ignore_errors: yes
+
+    - name: Show VLAN brief output
+      debug:
+        var: vlan_brief_output.stdout_lines
+      when: vlan_brief_output is succeeded
+      
+    - name: Save VLAN information to file
+      copy:
+        content: |
+          Dell Switch VLAN Report - 10.0.0.5
+          Generated: {{ ansible_date_time.iso8601 }}
+          Username: {{ switch_user }}
+          =====================================
+          
+          VLAN Information:
+          {{ vlan_output.stdout }}
+          
+          {% if vlan_brief_output is succeeded %}
+          VLAN Brief Information:
+          {{ vlan_brief_output.stdout }}
+          {% endif %}
+          
+        dest: "/tmp/dell-switch-vlans-expect-10.0.0.5-{{ ansible_date_time.date }}.txt"
+      when: vlan_output is succeeded

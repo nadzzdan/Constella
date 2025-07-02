@@ -1,0 +1,93 @@
+---
+- name: Dell Switch - Show VLANs Using Expect
+  hosts: localhost
+  gather_facts: no
+  vars:
+    switch_ip: "10.0.0.5"
+    username: "janestrada"
+    password: "Love2eat"
+    enable_password: "Love2eat"  # Optional if 'enable' is needed
+  tasks:
+
+    - name: Run 'show vlan' using expect
+      ansible.builtin.expect:
+        command: ssh {{ username }}@{{ switch_ip }}
+        responses:
+          (?i)password: "{{ password }}"
+          (?i)#: "show vlan\nexit"
+        timeout: 30
+      register: vlan_result
+
+    - name: Show VLAN output
+      debug:
+        var: vlan_result.stdout_lines
+        
+    - name: Run 'show vlan brief' using expect
+      ansible.builtin.expect:
+        command: ssh {{ username }}@{{ switch_ip }}
+        responses:
+          (?i)password: "{{ password }}"
+          (?i)#: "show vlan brief\nexit"
+        timeout: 30
+      register: vlan_brief_result
+      ignore_errors: yes
+
+    - name: Show VLAN brief output
+      debug:
+        var: vlan_brief_result.stdout_lines
+      when: vlan_brief_result is succeeded
+      
+    - name: Run 'show interface vlan' using expect
+      ansible.builtin.expect:
+        command: ssh {{ username }}@{{ switch_ip }}
+        responses:
+          (?i)password: "{{ password }}"
+          (?i)#: "show interface vlan\nexit"
+        timeout: 30
+      register: interface_vlan_result
+      ignore_errors: yes
+
+    - name: Show interface VLAN output
+      debug:
+        var: interface_vlan_result.stdout_lines
+      when: interface_vlan_result is succeeded
+      
+    - name: Create VLAN summary report
+      copy:
+        content: |
+          Dell Switch VLAN Configuration Report
+          Switch IP: {{ switch_ip }}
+          Username: {{ username }}
+          Generated: {{ ansible_date_time.iso8601 }}
+          ==========================================
+          
+          VLAN Information:
+          {{ vlan_result.stdout }}
+          
+          {% if vlan_brief_result is succeeded %}
+          VLAN Brief Information:
+          {{ vlan_brief_result.stdout }}
+          
+          {% endif %}
+          {% if interface_vlan_result is succeeded %}
+          Interface VLAN Information:
+          {{ interface_vlan_result.stdout }}
+          
+          {% endif %}
+          
+          Summary:
+          - Switch: {{ switch_ip }}
+          - User: {{ username }}
+          - Connection: Successful
+          - Commands executed: show vlan, show vlan brief, show interface vlan
+          
+        dest: "/tmp/dell-switch-vlans-check-10.0.0.5-{{ ansible_date_time.date }}.txt"
+        
+    - name: Display summary
+      debug:
+        msg: |
+          === Dell Switch VLAN Check Summary ===
+          Switch: {{ switch_ip }}
+          User: {{ username }}
+          VLAN commands executed successfully
+          Report saved to: /tmp/dell-switch-vlans-check-10.0.0.5-{{ ansible_date_time.date }}.txt

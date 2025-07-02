@@ -1,0 +1,48 @@
+---
+- name: Get Running Windows Services
+  hosts: windows
+  gather_facts: yes
+  vars:
+    ansible_connection: winrm
+    ansible_winrm_server_cert_validation: ignore
+    ansible_winrm_transport: basic
+    
+  tasks:
+    - name: Get information about running services only
+      win_shell: |
+        Get-Service | Where-Object {$_.Status -eq "Running"} | 
+        Select-Object Name, DisplayName, Status, StartType | 
+        ConvertTo-Json
+      register: running_services_raw
+      
+    - name: Parse running services JSON
+      set_fact:
+        running_services: "{{ running_services_raw.stdout | from_json }}"
+        
+    - name: Display running services count
+      debug:
+        msg: "Found {{ running_services | length }} running services on {{ inventory_hostname }}"
+        
+    - name: Show top 10 running services
+      debug:
+        msg: "{{ item.Name }} - {{ item.DisplayName }} ({{ item.Status }})"
+      loop: "{{ running_services[:10] }}"
+      loop_control:
+        label: "{{ item.Name }}"
+        
+    - name: Save running services to file
+      copy:
+        content: |
+          Running Windows Services on {{ inventory_hostname }}
+          Generated: {{ ansible_date_time.iso8601 }}
+          =================================================
+          
+          {% for service in running_services %}
+          Name: {{ service.Name }}
+          Display Name: {{ service.DisplayName }}
+          Status: {{ service.Status }}
+          Start Type: {{ service.StartType }}
+          ---
+          {% endfor %}
+        dest: "/tmp/{{ inventory_hostname }}-running-services.txt"
+      delegate_to: localhost

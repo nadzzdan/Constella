@@ -1,0 +1,81 @@
+---
+- name: Dell Switch VLAN Information (Simple) - 10.0.0.5
+  hosts: dell_switch_10_0_0_5
+  gather_facts: no
+  vars:
+    ansible_user: janestrada
+    ansible_password: Love2eat
+    ansible_connection: ansible.netcommon.network_cli
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+    
+  tasks:
+    - name: Show VLANs on Dell switch
+      raw: show vlan
+      register: show_vlans
+      
+    - name: Show VLAN database
+      raw: show vlan database
+      register: vlan_database
+      ignore_errors: yes
+      
+    - name: Show interface VLAN configuration
+      raw: show interface vlan
+      register: interface_vlans
+      ignore_errors: yes
+      
+    - name: Display VLAN information
+      debug:
+        msg: |
+          === Dell Switch 10.0.0.5 VLAN Information ===
+          
+          Main VLAN Output:
+          {{ show_vlans.stdout }}
+          
+    - name: Display VLAN database if available
+      debug:
+        msg: |
+          === VLAN Database ===
+          {{ vlan_database.stdout }}
+      when: vlan_database.stdout is defined and vlan_database.stdout != ""
+      
+    - name: Display interface VLANs if available
+      debug:
+        msg: |
+          === Interface VLAN Configuration ===
+          {{ interface_vlans.stdout }}
+      when: interface_vlans.stdout is defined and interface_vlans.stdout != ""
+      
+    - name: Create VLAN summary report
+      copy:
+        content: |
+          Dell Access Switch VLAN Report
+          ==============================
+          Switch IP: 10.0.0.5
+          Username: janestrada
+          Password: Love2eat
+          Generated: {{ ansible_date_time.iso8601 }}
+          
+          VLAN Information:
+          -----------------
+          {{ show_vlans.stdout }}
+          
+          {% if vlan_database.stdout is defined and vlan_database.stdout != "" %}
+          VLAN Database:
+          --------------
+          {{ vlan_database.stdout }}
+          
+          {% endif %}
+          {% if interface_vlans.stdout is defined and interface_vlans.stdout != "" %}
+          Interface VLAN Configuration:
+          ----------------------------
+          {{ interface_vlans.stdout }}
+          
+          {% endif %}
+          
+          Connection Details:
+          - Target: 10.0.0.5
+          - User: janestrada
+          - Authentication: Successful
+          
+        dest: "/tmp/dell-switch-vlans-simple-10.0.0.5-{{ ansible_date_time.date }}.txt"
+      delegate_to: localhost
