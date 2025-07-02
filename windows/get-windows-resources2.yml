@@ -1,0 +1,64 @@
+---
+- name: Get Windows System Resources Information
+  hosts: windows
+  gather_facts: yes
+  vars:
+    ansible_connection: winrm
+    ansible_winrm_server_cert_validation: ignore
+    ansible_winrm_transport: basic
+    
+  tasks:
+    - name: Get RAM information
+      win_shell: |
+        $totalRAM = (Get-WmiObject -Class Win32_ComputerSystem).TotalPhysicalMemory
+        $availableRAM = (Get-WmiObject -Class Win32_OperatingSystem).FreePhysicalMemory * 1024
+        $usedRAM = $totalRAM - $availableRAM
+        $ramPercentage = [math]::Round(($usedRAM / $totalRAM) * 100, 2)
+        
+        $totalRAM_GB = [math]::Round($totalRAM / 1GB, 2)
+        $usedRAM_GB = [math]::Round($usedRAM / 1GB, 2)
+        
+        $result = @{
+            "TotalRAM_GB" = $totalRAM_GB
+            "UsedRAM_GB" = $usedRAM_GB
+            "RAMPercentage" = $ramPercentage
+        }
+        $result | ConvertTo-Json
+      register: ram_info_raw
+      
+    - name: Get storage information for C drive
+      win_shell: |
+        $drive = Get-WmiObject -Class Win32_LogicalDisk -Filter "DeviceID='C:'"
+        $totalStorage = $drive.Size
+        $freeStorage = $drive.FreeSpace
+        $usedStorage = $totalStorage - $freeStorage
+        $storagePercentage = [math]::Round(($usedStorage / $totalStorage) * 100, 2)
+        
+        $totalStorage_GB = [math]::Round($totalStorage / 1GB, 2)
+        $usedStorage_GB = [math]::Round($usedStorage / 1GB, 2)
+        
+        $result = @{
+            "TotalStorage_GB" = $totalStorage_GB
+            "UsedStorage_GB" = $usedStorage_GB
+            "StoragePercentage" = $storagePercentage
+        }
+        $result | ConvertTo-Json
+      register: storage_info_raw
+      
+    - name: Parse RAM and Storage JSON
+      set_fact:
+        ram_info: "{{ ram_info_raw.stdout | from_json }}"
+        storage_info: "{{ storage_info_raw.stdout | from_json }}"
+        
+    - name: Display system resources in requested format
+      debug:
+        msg: |
+          -RAM part
+          Current RAM usage: {{ ram_info.UsedRAM_GB }} GB
+          Max RAM: {{ ram_info.TotalRAM_GB }} GB
+          Percentage usage: {{ ram_info.RAMPercentage }}%
+          
+          -Storage part
+          Current Storage usage: {{ storage_info.UsedStorage_GB }} GB
+          Max Storage: {{ storage_info.TotalStorage_GB }} GB
+          Percentage usage: {{ storage_info.StoragePercentage }}%
