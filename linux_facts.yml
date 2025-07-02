@@ -1,0 +1,16 @@
+---
+- name: Gather Linux VM System Info
+  hosts: linux
+  gather_facts: yes
+  tasks:
+    - name: Print CPU Info
+      debug:
+        var: ansible_facts.processor
+
+    - name: Print Memory Info
+      debug:
+        var: ansible_facts.memtotal_mb
+
+    - name: Print Storage Info
+      debug:
+        var: ansible_facts.devices

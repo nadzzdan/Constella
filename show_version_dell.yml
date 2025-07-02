@@ -1,0 +1,15 @@
+---
+- name: Get Dell Switch Version Info
+  hosts: dell_switches
+  gather_facts: no
+  tasks:
+    - name: Run "enable" then "show version"
+      raw:
+        show version 1
+        exit
+        exit
+      register: version_output
+
+    - name: Show output
+      debug:
+        var: version_output.stdout_lines

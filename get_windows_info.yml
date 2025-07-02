@@ -1,0 +1,19 @@
+---
+- name: Gather info from Windows VM
+  hosts: windows_vm
+  gather_facts: yes
+  tasks:
+    - name: Display CPU info
+      debug:
+        msg: "{{ ansible_processor }}"
+
+    - name: Display Total Memory
+      debug:
+        msg: "{{ ansible_memtotal_mb }} MB"
+
+    - name: Gather disk info
+      win_disk_facts:
+
+    - name: Display Disk Info
+      debug:
+        var: ansible_disks
