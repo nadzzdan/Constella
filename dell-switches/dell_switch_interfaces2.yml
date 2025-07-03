@@ -2,10 +2,10 @@
 - name: Dell Switch - Show Interfaces and Descriptions
   hosts: localhost
   gather_facts: no
-  vars:
-    switch_ip: "10.0.0.5"
-    username: "janestrada"
-    password: "Love2eat"
+  #vars:
+   # switch_ip: "10.0.0.5"
+    #username: "janestrada"
+    #password: "Love2eat"
 
   tasks:
 
