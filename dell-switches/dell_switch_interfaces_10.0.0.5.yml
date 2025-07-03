@@ -1,11 +1,11 @@
 ---
 - name: Dell Switch - Show Interfaces and Descriptions
-  hosts: localhost
+  hosts: dell_switches
   gather_facts: yes
-  vars:
-    switch_ip: "10.0.0.5"
-    username: "janestrada"
-    password: "Love2eat"
+  #vars:
+  #  switch_ip: "10.0.0.5"
+  #  username: "janestrada"
+  #  password: "Love2eat"
   tasks:
 
     - name: Run 'show interface status' using expect
