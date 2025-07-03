@@ -1,5 +1,5 @@
 ---
-- name: Dell Switch - Show Interfaces Only
+- name: Dell Switch - Display Cleaned Interface Output Only
   hosts: dell_switches
   gather_facts: no
   #vars:
@@ -8,7 +8,7 @@
   #  password: "Love2eat"
 
   tasks:
-    - name: Run 'show interfaces' using expect
+    - name: SSH and run 'show interfaces' manually
       ansible.builtin.expect:
         command: ssh -o StrictHostKeyChecking=no {{ username }}@{{ switch_ip }}
         responses:
@@ -18,44 +18,11 @@
       register: interfaces_result
       ignore_errors: yes
 
-    - name: Clean detailed interfaces output
-      set_fact:
-        interfaces_result_cleaned: >-
+    - name: Clean and display interface result
+      debug:
+        msg: |
+          === Cleaned Dell Switch Interface Output ===
           {{ interfaces_result.stdout
              | replace('\r', '')
              | regex_replace('--More--.*', '')
              | regex_replace('\n{2,}', '\n') }}
-
-    - name: Show Detailed Interface Information
-      debug:
-        msg: |
-          === Detailed Interface Information ===
-          {{ interfaces_result_cleaned }}
-
-    - name: Create Interface summary report
-      copy:
-        content: |
-          Dell Switch Interface Report
-          Switch IP: {{ switch_ip }}
-          Username: {{ username }}
-          Generated: {{ ansible_date_time.iso8601 }}
-          ============================================
-          
-          Detailed Interface Information:
-          {{ interfaces_result_cleaned }}
-          
-          Summary:
-          - Switch: {{ switch_ip }} (NOC-LAB-CORE-02)
-          - User: {{ username }}
-          - Command executed: show interfaces
-
-        dest: "/tmp/dell-switch-interfaces-{{ switch_ip }}-{{ ansible_date_time.date }}.txt"
-
-    - name: Display final summary
-      debug:
-        msg: |
-          === Interface Discovery Complete ===
-          Switch: {{ switch_ip }}
-          User: {{ username }}
-          Status: SUCCESS
-          Output saved to: /tmp/dell-switch-interfaces-{{ switch_ip }}-{{ ansible_date_time.date }}.txt
