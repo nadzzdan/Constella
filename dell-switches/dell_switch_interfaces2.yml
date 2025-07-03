@@ -1,33 +1,13 @@
 ---
-- name: Dell Switch - Show Interfaces and Descriptions
+- name: Dell Switch - Show Interfaces Only
   hosts: dell_switches
   gather_facts: no
   #vars:
-   # switch_ip: "10.0.0.5"
-    #username: "janestrada"
-    #password: "Love2eat"
+  #  switch_ip: "10.0.0.5"
+  #  username: "janestrada"
+  #  password: "Love2eat"
 
   tasks:
-
-    - name: Run 'show interface status' using expect
-      ansible.builtin.expect:
-        command: ssh -o StrictHostKeyChecking=no {{ username }}@{{ switch_ip }}
-        responses:
-          (?i)password: "{{ password }}"
-          (?i)#: "show interface status\nexit"
-        timeout: 30
-      register: interface_status_result
-
-    - name: Run 'show interface description' using expect
-      ansible.builtin.expect:
-        command: ssh -o StrictHostKeyChecking=no {{ username }}@{{ switch_ip }}
-        responses:
-          (?i)password: "{{ password }}"
-          (?i)#: "show interface description\nexit"
-        timeout: 30
-      register: interface_desc_result
-      ignore_errors: yes
-
     - name: Run 'show interfaces' using expect
       ansible.builtin.expect:
         command: ssh -o StrictHostKeyChecking=no {{ username }}@{{ switch_ip }}
@@ -38,67 +18,36 @@
       register: interfaces_result
       ignore_errors: yes
 
-    - name: Clean interface status output
-      set_fact:
-        interface_status_cleaned: "{{ interface_status_result.stdout | replace('\r', '') | replace('\n', '\n') | regex_replace('--More--.*', '') }}"
-
-    - name: Clean interface description output
-      set_fact:
-        interface_desc_cleaned: "{{ interface_desc_result.stdout | replace('\r', '') | replace('\n', '\n') | regex_replace('--More--.*', '') }}"
-      when: interface_desc_result is succeeded
-
     - name: Clean detailed interfaces output
       set_fact:
-        interfaces_result_cleaned: "{{ interfaces_result.stdout | replace('\r', '') | replace('\n', '\n') | regex_replace('--More--.*', '') }}"
-      when: interfaces_result is succeeded
+        interfaces_result_cleaned: >-
+          {{ interfaces_result.stdout
+             | replace('\r', '')
+             | regex_replace('--More--.*', '')
+             | regex_replace('\n{2,}', '\n') }}
 
-    - name: Show Interface Status
-      debug:
-        msg: |
-          === Dell Switch Interface Status ===
-          {{ interface_status_cleaned }}
-
-    - name: Show Interface Descriptions (if available)
-      debug:
-        msg: |
-          === Interface Descriptions ===
-          {{ interface_desc_cleaned }}
-      when: interface_desc_result is succeeded
-
-    - name: Show Detailed Interface Information (if available)
+    - name: Show Detailed Interface Information
       debug:
         msg: |
           === Detailed Interface Information ===
           {{ interfaces_result_cleaned }}
-      when: interfaces_result is succeeded
 
     - name: Create Interface summary report
       copy:
         content: |
-          Dell Switch Interface Configuration Report
+          Dell Switch Interface Report
           Switch IP: {{ switch_ip }}
           Username: {{ username }}
           Generated: {{ ansible_date_time.iso8601 }}
           ============================================
-
-          Interface Status:
-          {{ interface_status_cleaned }}
-
-          {% if interface_desc_result is succeeded %}
-          Interface Descriptions:
-          {{ interface_desc_cleaned }}
-          {% endif %}
-
-          {% if interfaces_result is succeeded %}
+          
           Detailed Interface Information:
           {{ interfaces_result_cleaned }}
-          {% endif %}
-
+          
           Summary:
           - Switch: {{ switch_ip }} (NOC-LAB-CORE-02)
           - User: {{ username }}
-          - Connection: Successful
-          - Commands executed: show interface status, show interface description, show interfaces
+          - Command executed: show interfaces
 
         dest: "/tmp/dell-switch-interfaces-{{ switch_ip }}-{{ ansible_date_time.date }}.txt"
 
@@ -109,5 +58,4 @@
           Switch: {{ switch_ip }}
           User: {{ username }}
           Status: SUCCESS
-          Interface information retrieved and documented
-          Report saved to: /tmp/dell-switch-interfaces-{{ switch_ip }}-{{ ansible_date_time.date }}.txt
+          Output saved to: /tmp/dell-switch-interfaces-{{ switch_ip }}-{{ ansible_date_time.date }}.txt
