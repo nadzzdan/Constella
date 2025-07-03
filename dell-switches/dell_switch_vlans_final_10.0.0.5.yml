@@ -2,10 +2,7 @@
 - name: Dell Switch - Show VLANs Using Expect (Final)
   hosts: dell_switches
   gather_facts: yes
-  #vars:
-   #switch_ip: "10.0.0.5"
-   # username: "janestrada"
-   # password: "Love2eat"
+
   tasks:
 
     - name: Run 'show vlan' using expect
