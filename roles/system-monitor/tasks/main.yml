@@ -1,0 +1,53 @@
+---
+- name: Get CPU Usage
+  shell: |
+    top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1
+  register: cpu_usage
+  
+- name: Get Memory Usage
+  shell: |
+    free | grep Mem | awk '{printf "%.2f", $3/$2 * 100.0}'
+  register: memory_usage
+  
+- name: Get Disk Usage
+  shell: |
+    df -h / | awk 'NR==2 {print $5}' | sed 's/%//'
+  register: disk_usage
+  
+- name: Get System Load
+  shell: |
+    uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | sed 's/,//'
+  register: load_average
+  
+- name: Get System Information
+  shell: |
+    echo "Hostname: $(hostname)"
+    echo "OS: $(cat /etc/os-release | grep PRETTY_NAME | cut -d'"' -f2)"
+    echo "Kernel: $(uname -r)"
+    echo "Architecture: $(uname -m)"
+    echo "Uptime: $(uptime -p)"
+  register: system_info
+  
+- name: Store monitoring data
+  set_fact:
+    monitoring_data:
+      timestamp: "{{ ansible_date_time.iso8601 }}"
+      hostname: "{{ inventory_hostname }}"
+      cpu_usage: "{{ cpu_usage.stdout }}"
+      memory_usage: "{{ memory_usage.stdout }}"
+      disk_usage: "{{ disk_usage.stdout }}"
+      load_average: "{{ load_average.stdout }}"
+      system_info: "{{ system_info.stdout }}"
+      
+- name: Display monitoring results
+  debug:
+    msg: |
+      ===== SYSTEM RESOURCES FOR {{ inventory_hostname }} =====
+      CPU Usage: {{ monitoring_data.cpu_usage }}%
+      Memory Usage: {{ monitoring_data.memory_usage }}%
+      Disk Usage: {{ monitoring_data.disk_usage }}%
+      Load Average: {{ monitoring_data.load_average }}
+      
+      System Info:
+      {{ monitoring_data.system_info }}
+      ===========================================

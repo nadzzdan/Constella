@@ -1,0 +1,17 @@
+# Global variables
+ansible_ssh_pipelining: true
+ansible_ssh_extra_args: '-o ControlMaster=auto -o ControlPersist=60s'
+
+# Monitoring settings
+monitoring_interval: 300  # 5 minutes
+retention_days: 30
+report_path: /var/log/monitoring
+
+# Alert settings
+alert_email: admin@yourdomain.com
+alert_webhook: https://your-webhook-url.com/alerts
+
+# Security settings
+security_scan_enabled: true
+auto_update_enabled: false
+backup_enabled: true

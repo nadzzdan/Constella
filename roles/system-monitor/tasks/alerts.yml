@@ -1,0 +1,15 @@
+---
+- name: Check CPU threshold
+  fail:
+    msg: "CPU usage {{ monitoring_data.cpu_usage }}% exceeds threshold {{ alert_threshold_cpu }}%"
+  when: monitoring_data.cpu_usage | int > alert_threshold_cpu | int
+  
+- name: Check Memory threshold
+  fail:
+    msg: "Memory usage {{ monitoring_data.memory_usage }}% exceeds threshold {{ alert_threshold_memory }}%"
+  when: monitoring_data.memory_usage | float > alert_threshold_memory | int
+  
+- name: Check Disk threshold
+  fail:
+    msg: "Disk usage {{ monitoring_data.disk_usage }}% exceeds threshold {{ alert_threshold_disk }}%"
+  when: monitoring_data.disk_usage | int > alert_threshold_disk | int

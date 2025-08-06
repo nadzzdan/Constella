@@ -1,0 +1,9 @@
+---
+# External roles (if needed)
+- name: geerlingguy.security
+  version: 1.0.0
+  src: geerlingguy.security
+
+- name: geerlingguy.monitoring
+  version: 1.0.0
+  src: geerlingguy.monitoring

@@ -1,0 +1,23 @@
+---
+- name: System Resource Monitoring
+  hosts: linux_vms
+  gather_facts: yes
+  become: yes
+  
+  tasks:
+    - name: Include system monitoring role
+      include_role:
+        name: system-monitor
+        tasks_from: main
+      
+    - name: Generate monitoring report
+      template:
+        src: ../roles/system-monitor/templates/report.j2
+        dest: "{{ report_path }}/system-report-{{ inventory_hostname }}-{{ ansible_date_time.epoch }}.html"
+        mode: '0644'
+      
+    - name: Send alerts if thresholds exceeded
+      include_role:
+        name: system-monitor
+        tasks_from: alerts
+      when: monitoring_enabled | bool
