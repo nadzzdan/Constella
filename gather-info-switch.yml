@@ -1,6 +1,6 @@
 ---
 - name: Gather Dell Switch Info
-  hosts: dell-switch
+  hosts: all
   gather_facts: no
 
   tasks:
