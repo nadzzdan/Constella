@@ -1,0 +1,216 @@
+---
+- name: Windows Services and Applications Monitoring
+  hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: yes
+  become: no
+  
+  tasks:
+    - name: Get Windows Services Status
+      win_shell: |
+        Write-Host "=== WINDOWS SERVICES STATUS ==="
+        Write-Host "Running Services:"
+        Get-Service | Where-Object {$_.Status -eq "Running"} | Sort-Object Name | ForEach-Object {
+          Write-Host "  $($_.Name): $($_.DisplayName) (Status: $($_.Status))"
+        }
+        
+        Write-Host ""
+        Write-Host "Stopped Services:"
+        Get-Service | Where-Object {$_.Status -eq "Stopped"} | Sort-Object Name | Select-Object -First 10 | ForEach-Object {
+          Write-Host "  $($_.Name): $($_.DisplayName) (Status: $($_.Status))"
+        }
+        
+        Write-Host ""
+        Write-Host "Total Services:"
+        $totalServices = (Get-Service).Count
+        $runningServices = (Get-Service | Where-Object {$_.Status -eq "Running"}).Count
+        $stoppedServices = (Get-Service | Where-Object {$_.Status -eq "Stopped"}).Count
+        Write-Host "  Total: $totalServices"
+        Write-Host "  Running: $runningServices"
+        Write-Host "  Stopped: $stoppedServices"
+      register: services_info
+      changed_when: false
+
+    - name: Get Running Applications and Processes
+      win_shell: |
+        Write-Host "=== RUNNING APPLICATIONS AND PROCESSES ==="
+        Write-Host "Top 20 Processes by CPU Usage:"
+        Get-Process | Sort-Object CPU -Descending | Select-Object -First 20 | ForEach-Object {
+          $cpuPercent = if ($_.CPU) { [math]::Round($_.CPU, 2) } else { "0.00" }
+          $memoryMB = [math]::Round($_.WorkingSet / 1MB, 2)
+          Write-Host "  $($_.ProcessName): CPU=$cpuPercent, Memory=${memoryMB}MB, PID=$($_.Id)"
+        }
+        
+        Write-Host ""
+        Write-Host "Top 20 Processes by Memory Usage:"
+        Get-Process | Sort-Object WorkingSet -Descending | Select-Object -First 20 | ForEach-Object {
+          $cpuPercent = if ($_.CPU) { [math]::Round($_.CPU, 2) } else { "0.00" }
+          $memoryMB = [math]::Round($_.WorkingSet / 1MB, 2)
+          Write-Host "  $($_.ProcessName): Memory=${memoryMB}MB, CPU=$cpuPercent, PID=$($_.Id)"
+        }
+      register: processes_info
+      changed_when: false
+
+    - name: Get Detailed Process Information
+      win_shell: |
+        Write-Host "=== DETAILED PROCESS INFORMATION ==="
+        Write-Host "System Processes (High Resource Usage):"
+        
+        # Get processes with high CPU or memory usage
+        $highUsageProcesses = Get-Process | Where-Object {
+          ($_.CPU -gt 1) -or ($_.WorkingSet -gt 100MB)
+        } | Sort-Object CPU -Descending
+        
+        foreach ($process in $highUsageProcesses) {
+          $cpuPercent = if ($process.CPU) { [math]::Round($process.CPU, 2) } else { "0.00" }
+          $memoryMB = [math]::Round($process.WorkingSet / 1MB, 2)
+          $virtualMemoryMB = [math]::Round($process.VirtualMemorySize / 1MB, 2)
+          $startTime = if ($process.StartTime) { $process.StartTime.ToString("yyyy-MM-dd HH:mm:ss") } else { "Unknown" }
+          
+          Write-Host "  Process: $($process.ProcessName)"
+          Write-Host "    PID: $($process.Id)"
+          Write-Host "    CPU: $cpuPercent"
+          Write-Host "    Memory: ${memoryMB}MB"
+          Write-Host "    Virtual Memory: ${virtualMemoryMB}MB"
+          Write-Host "    Start Time: $startTime"
+          Write-Host "    Threads: $($process.Threads.Count)"
+          Write-Host ""
+        }
+      register: detailed_processes_info
+      changed_when: false
+
+    - name: Get Windows Services with Resource Usage
+      win_shell: |
+        Write-Host "=== WINDOWS SERVICES WITH RESOURCE USAGE ==="
+        
+        # Get services that have associated processes
+        $servicesWithProcesses = Get-WmiObject -Class Win32_Service | Where-Object {$_.State -eq "Running"}
+        
+        foreach ($service in $servicesWithProcesses) {
+          try {
+            $process = Get-Process -Name $service.ProcessId -ErrorAction SilentlyContinue
+            if ($process) {
+              $memoryMB = [math]::Round($process.WorkingSet / 1MB, 2)
+              $cpuPercent = if ($process.CPU) { [math]::Round($process.CPU, 2) } else { "0.00" }
+              
+              Write-Host "  Service: $($service.DisplayName)"
+              Write-Host "    Name: $($service.Name)"
+              Write-Host "    PID: $($service.ProcessId)"
+              Write-Host "    Memory: ${memoryMB}MB"
+              Write-Host "    CPU: $cpuPercent"
+              Write-Host "    Start Mode: $($service.StartMode)"
+              Write-Host ""
+            }
+          } catch {
+            # Service might not have an associated process
+          }
+        }
+      register: services_resource_info
+      changed_when: false
+
+    - name: Get Application Performance Counters
+      win_shell: |
+        Write-Host "=== APPLICATION PERFORMANCE COUNTERS ==="
+        
+        # Get overall system performance
+        $cpuUsage = Get-Counter '\Processor(_Total)\% Processor Time' | Select-Object -ExpandProperty CounterSamples | Select-Object -ExpandProperty CookedValue
+        $memoryUsage = Get-Counter '\Memory\% Committed Bytes In Use' | Select-Object -ExpandProperty CounterSamples | Select-Object -ExpandProperty CookedValue
+        $diskUsage = Get-Counter '\PhysicalDisk(_Total)\% Disk Time' | Select-Object -ExpandProperty CounterSamples | Select-Object -ExpandProperty CookedValue
+        
+        Write-Host "System Performance:"
+        Write-Host "  CPU Usage: $([math]::Round($cpuUsage, 1))%"
+        Write-Host "  Memory Usage: $([math]::Round($memoryUsage, 1))%"
+        Write-Host "  Disk Usage: $([math]::Round($diskUsage, 1))%"
+        
+        Write-Host ""
+        Write-Host "Process Count by Status:"
+        $processes = Get-Process
+        $processCount = $processes.Count
+        $systemProcesses = ($processes | Where-Object {$_.ProcessName -like "*system*" -or $_.ProcessName -like "*svchost*"}).Count
+        $userProcesses = $processCount - $systemProcesses
+        
+        Write-Host "  Total Processes: $processCount"
+        Write-Host "  System Processes: $systemProcesses"
+        Write-Host "  User Processes: $userProcesses"
+      register: performance_counters_info
+      changed_when: false
+
+    - name: Get Startup Applications
+      win_shell: |
+        Write-Host "=== STARTUP APPLICATIONS ==="
+        
+        # Get startup programs from registry
+        $startupPaths = @(
+          "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+          "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+          "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce",
+          "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
+        )
+        
+        foreach ($path in $startupPaths) {
+          Write-Host "Registry Path: $path"
+          try {
+            $startupItems = Get-ItemProperty -Path $path -ErrorAction SilentlyContinue
+            if ($startupItems) {
+              $startupItems.PSObject.Properties | Where-Object {$_.Name -notlike "PS*"} | ForEach-Object {
+                Write-Host "  $($_.Name): $($_.Value)"
+              }
+            } else {
+              Write-Host "  No startup items found"
+            }
+          } catch {
+            Write-Host "  Access denied or path not found"
+          }
+          Write-Host ""
+        }
+      register: startup_apps_info
+      changed_when: false
+
+    - name: Get Network Connections
+      win_shell: |
+        Write-Host "=== NETWORK CONNECTIONS ==="
+        
+        # Get active network connections
+        $connections = Get-NetTCPConnection -State Listen | Sort-Object LocalPort | Select-Object -First 15
+        
+        Write-Host "Active Network Connections (Top 15):"
+        foreach ($conn in $connections) {
+          $processName = "Unknown"
+          try {
+            $process = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
+            if ($process) {
+              $processName = $process.ProcessName
+            }
+          } catch {}
+          
+          Write-Host "  Port $($conn.LocalPort): $processName (PID: $($conn.OwningProcess))"
+        }
+      register: network_info
+      changed_when: false
+
+    - name: Display Complete Services and Applications Report
+      debug:
+        msg: |
+          
+          ========================================
+          WINDOWS SERVICES & APPLICATIONS REPORT
+          ========================================
+          Host: {{ inventory_hostname }}
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          
+          {{ services_info.stdout }}
+          
+          {{ processes_info.stdout }}
+          
+          {{ detailed_processes_info.stdout }}
+          
+          {{ services_resource_info.stdout }}
+          
+          {{ performance_counters_info.stdout }}
+          
+          {{ startup_apps_info.stdout }}
+          
+          {{ network_info.stdout }}
+          
+          ========================================
+          Services and applications check completed successfully!
+          ========================================
