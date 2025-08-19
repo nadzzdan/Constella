@@ -1,0 +1,18 @@
+all:
+  children:
+    windows_vms:
+      hosts:
+        win-vm1:
+          ansible_host: 10.50.20.63
+          ansible_connection: winrm
+          ansible_winrm_server_cert_validation: ignore
+          ansible_winrm_transport: basic
+          ansible_winrm_port: 5985
+          ansible_shell_type: powershell
+      
+      vars:
+        ansible_connection: winrm
+        ansible_winrm_server_cert_validation: ignore
+        ansible_winrm_transport: basic
+        ansible_winrm_port: 5985
+        ansible_shell_type: powershell
