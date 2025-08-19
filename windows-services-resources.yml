@@ -78,7 +78,7 @@
       register: detailed_processes_info
       changed_when: false
 
-    - name: Get Windows Services with Resource Usage
+    - name: Get Windows Services with Resource Usage (Fixed)
       win_shell: |
         Write-Host "=== WINDOWS SERVICES WITH RESOURCE USAGE ==="
         
@@ -87,18 +87,21 @@
         
         foreach ($service in $servicesWithProcesses) {
           try {
-            $process = Get-Process -Name $service.ProcessId -ErrorAction SilentlyContinue
-            if ($process) {
-              $memoryMB = [math]::Round($process.WorkingSet / 1MB, 2)
-              $cpuPercent = if ($process.CPU) { [math]::Round($process.CPU, 2) } else { "0.00" }
-              
-              Write-Host "  Service: $($service.DisplayName)"
-              Write-Host "    Name: $($service.Name)"
-              Write-Host "    PID: $($service.ProcessId)"
-              Write-Host "    Memory: ${memoryMB}MB"
-              Write-Host "    CPU: $cpuPercent"
-              Write-Host "    Start Mode: $($service.StartMode)"
-              Write-Host ""
+            # Use ProcessId (number) instead of Name
+            if ($service.ProcessId -gt 0) {
+              $process = Get-Process -Id $service.ProcessId -ErrorAction SilentlyContinue
+              if ($process) {
+                $memoryMB = [math]::Round($process.WorkingSet / 1MB, 2)
+                $cpuPercent = if ($process.CPU) { [math]::Round($process.CPU, 2) } else { "0.00" }
+                
+                Write-Host "  Service: $($service.DisplayName)"
+                Write-Host "    Name: $($service.Name)"
+                Write-Host "    PID: $($service.ProcessId)"
+                Write-Host "    Memory: ${memoryMB}MB"
+                Write-Host "    CPU: $cpuPercent"
+                Write-Host "    Start Mode: $($service.StartMode)"
+                Write-Host ""
+              }
             }
           } catch {
             # Service might not have an associated process
@@ -141,9 +144,7 @@
         # Get startup programs from registry
         $startupPaths = @(
           "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
-          "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
-          "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce",
-          "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
+          "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
         )
         
         foreach ($path in $startupPaths) {
@@ -170,19 +171,23 @@
         Write-Host "=== NETWORK CONNECTIONS ==="
         
         # Get active network connections
-        $connections = Get-NetTCPConnection -State Listen | Sort-Object LocalPort | Select-Object -First 15
-        
-        Write-Host "Active Network Connections (Top 15):"
-        foreach ($conn in $connections) {
-          $processName = "Unknown"
-          try {
-            $process = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
-            if ($process) {
-              $processName = $process.ProcessName
-            }
-          } catch {}
+        try {
+          $connections = Get-NetTCPConnection -State Listen | Sort-Object LocalPort | Select-Object -First 15
           
-          Write-Host "  Port $($conn.LocalPort): $processName (PID: $($conn.OwningProcess))"
+          Write-Host "Active Network Connections (Top 15):"
+          foreach ($conn in $connections) {
+            $processName = "Unknown"
+            try {
+              $process = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
+              if ($process) {
+                $processName = $process.ProcessName
+              }
+            } catch {}
+            
+            Write-Host "  Port $($conn.LocalPort): $processName (PID: $($conn.OwningProcess))"
+          }
+        } catch {
+          Write-Host "  Network connection information not available"
         }
       register: network_info
       changed_when: false
