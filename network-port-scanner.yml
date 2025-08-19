@@ -1,0 +1,436 @@
+---
+- name: Network Port Scanner - Windows VM
+  hosts: "{{ target_hosts | default('all') }}"
+  gather_facts: yes
+  become: no
+  
+  tasks:
+    # ========================================
+    # NETWORK PORT SCANNER OVERVIEW
+    # ========================================
+    - name: Get Network Scanner Overview
+      win_shell: |
+        Write-Host "========================================"
+        Write-Host "NETWORK PORT SCANNER - WINDOWS VM"
+        Write-Host "========================================"
+        Write-Host "Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        Write-Host "Hostname: $env:COMPUTERNAME"
+        Write-Host "IP Address: $(Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.IPAddress -notlike '169.254.*' -and $_.IPAddress -notlike '127.*'} | Select-Object -First 1 -ExpandProperty IPAddress)"
+        Write-Host "========================================"
+      register: scanner_overview
+      changed_when: false
+
+    - name: Display Scanner Overview
+      debug:
+        msg: "{{ scanner_overview.stdout }}"
+
+    # ========================================
+    # ACTIVE NETWORK CONNECTIONS
+    # ========================================
+    - name: Get Active Network Connections
+      win_shell: |
+        Write-Host "=== ACTIVE NETWORK CONNECTIONS ==="
+        Write-Host "Scanning all active TCP and UDP connections..."
+        Write-Host ""
+        
+        # Get all active TCP connections
+        $tcpConnections = Get-NetTCPConnection -State Listen, Established, TimeWait, CloseWait | Sort-Object LocalPort
+        
+        Write-Host "TCP CONNECTIONS:"
+        Write-Host "================"
+        
+        foreach ($conn in $tcpConnections) {
+          $localAddress = if ($conn.LocalAddress -eq "0.0.0.0") { "ALL INTERFACES" } else { $conn.LocalAddress }
+          $remoteAddress = if ($conn.RemoteAddress -eq "0.0.0.0") { "N/A" } else { $conn.RemoteAddress }
+          $remotePort = if ($conn.RemotePort -eq 0) { "N/A" } else { $conn.RemotePort }
+          
+          Write-Host "Port: $($conn.LocalPort) | State: $($conn.State) | Local: $localAddress | Remote: $remoteAddress`:$remotePort"
+          
+          # Try to get process information
+          try {
+            $process = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
+            if ($process) {
+              Write-Host "  Process: $($process.ProcessName) (PID: $($process.Id))"
+              Write-Host "  Path: $($process.Path)"
+            }
+          } catch {
+            Write-Host "  Process: Unknown (PID: $($conn.OwningProcess))"
+          }
+          Write-Host ""
+        }
+        
+        # Get all active UDP connections
+        $udpConnections = Get-NetUDPEndpoint | Sort-Object LocalPort
+        
+        Write-Host "UDP ENDPOINTS:"
+        Write-Host "=============="
+        
+        foreach ($conn in $udpConnections) {
+          $localAddress = if ($conn.LocalAddress -eq "0.0.0.0") { "ALL INTERFACES" } else { $conn.LocalAddress }
+          
+          Write-Host "Port: $($conn.LocalPort) | Local: $localAddress"
+          
+          # Try to get process information
+          try {
+            $process = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
+            if ($process) {
+              Write-Host "  Process: $($process.ProcessName) (PID: $($process.Id))"
+              Write-Host "  Path: $($process.Path)"
+            }
+          } catch {
+            Write-Host "  Process: Unknown (PID: $($conn.OwningProcess))"
+          }
+          Write-Host ""
+        }
+      register: active_connections
+      changed_when: false
+
+    - name: Display Active Connections
+      debug:
+        msg: "{{ active_connections.stdout }}"
+
+    # ========================================
+    # LISTENING PORTS ANALYSIS
+    # ========================================
+    - name: Analyze Listening Ports
+      win_shell: |
+        Write-Host "=== LISTENING PORTS ANALYSIS ==="
+        Write-Host ""
+        
+        # Get all listening TCP ports
+        $listeningPorts = Get-NetTCPConnection -State Listen | Sort-Object LocalPort
+        
+        Write-Host "LISTENING TCP PORTS:"
+        Write-Host "===================="
+        
+        foreach ($port in $listeningPorts) {
+          $localAddress = if ($port.LocalAddress -eq "0.0.0.0") { "ALL INTERFACES" } else { $port.LocalAddress }
+          
+          Write-Host "Port: $($port.LocalPort) | Address: $localAddress"
+          
+          # Get process information
+          try {
+            $process = Get-Process -Id $port.OwningProcess -ErrorAction SilentlyContinue
+            if ($process) {
+              Write-Host "  Process: $($process.ProcessName) (PID: $($process.Id))"
+              Write-Host "  Path: $($process.Path)"
+              
+              # Get service information if available
+              $service = Get-WmiObject -Class Win32_Service | Where-Object {$_.ProcessId -eq $process.Id}
+              if ($service) {
+                Write-Host "  Service: $($service.DisplayName) ($($service.Name))"
+                Write-Host "  Service Status: $($service.State)"
+              }
+            }
+          } catch {
+            Write-Host "  Process: Unknown (PID: $($port.OwningProcess))"
+          }
+          
+          # Common port analysis
+          $portNumber = $port.LocalPort
+          switch ($portNumber) {
+            21 { Write-Host "  Common Service: FTP" }
+            22 { Write-Host "  Common Service: SSH" }
+            23 { Write-Host "  Common Service: Telnet" }
+            25 { Write-Host "  Common Service: SMTP" }
+            53 { Write-Host "  Common Service: DNS" }
+            80 { Write-Host "  Common Service: HTTP" }
+            110 { Write-Host "  Common Service: POP3" }
+            143 { Write-Host "  Common Service: IMAP" }
+            443 { Write-Host "  Common Service: HTTPS" }
+            445 { Write-Host "  Common Service: SMB" }
+            3389 { Write-Host "  Common Service: RDP" }
+            5985 { Write-Host "  Common Service: WinRM HTTP" }
+            5986 { Write-Host "  Common Service: WinRM HTTPS" }
+            8080 { Write-Host "  Common Service: HTTP Proxy" }
+            8443 { Write-Host "  Common Service: HTTPS Alternative" }
+            default { 
+              if ($portNumber -lt 1024) {
+                Write-Host "  Common Service: Well-known port (System service)"
+              } elseif ($portNumber -lt 49152) {
+                Write-Host "  Common Service: Registered port (Application)"
+              } else {
+                Write-Host "  Common Service: Dynamic/Private port"
+              }
+            }
+          }
+          Write-Host ""
+        }
+      register: listening_ports
+      changed_when: false
+
+    - name: Display Listening Ports
+      debug:
+        msg: "{{ listening_ports.stdout }}"
+
+    # ========================================
+    # FIREWALL RULES ANALYSIS
+    # ========================================
+    - name: Analyze Firewall Rules
+      win_shell: |
+        Write-Host "=== FIREWALL RULES ANALYSIS ==="
+        Write-Host ""
+        
+        # Get enabled firewall rules
+        $firewallRules = Get-NetFirewallRule -Enabled True | Where-Object {$_.Direction -eq "Inbound"} | Sort-Object DisplayName
+        
+        Write-Host "ENABLED INBOUND FIREWALL RULES:"
+        Write-Host "==============================="
+        
+        foreach ($rule in $firewallRules | Select-Object -First 20) {
+          Write-Host "Rule: $($rule.DisplayName)"
+          Write-Host "  Action: $($rule.Action)"
+          Write-Host "  Direction: $($rule.Direction)"
+          Write-Host "  Profile: $($rule.Profile)"
+          Write-Host "  Enabled: $($rule.Enabled)"
+          
+          # Get port information
+          $portFilters = Get-NetFirewallPortFilter -AssociatedNetFirewallRule $rule
+          if ($portFilters) {
+            foreach ($filter in $portFilters) {
+              if ($filter.LocalPort) {
+                Write-Host "  Local Ports: $($filter.LocalPort)"
+              }
+              if ($filter.RemotePort) {
+                Write-Host "  Remote Ports: $($filter.RemotePort)"
+              }
+              if ($filter.Protocol) {
+                Write-Host "  Protocol: $($filter.Protocol)"
+              }
+            }
+          }
+          Write-Host ""
+        }
+        
+        Write-Host "Total Enabled Inbound Rules: $($firewallRules.Count)"
+      register: firewall_rules
+      changed_when: false
+
+    - name: Display Firewall Rules
+      debug:
+        msg: "{{ firewall_rules.stdout }}"
+
+    # ========================================
+    # NETWORK INTERFACES DETAILS
+    # ========================================
+    - name: Get Network Interfaces Details
+      win_shell: |
+        Write-Host "=== NETWORK INTERFACES DETAILS ==="
+        Write-Host ""
+        
+        $interfaces = Get-NetAdapter | Where-Object {$_.Status -eq "Up"}
+        
+        foreach ($interface in $interfaces) {
+          Write-Host "Interface: $($interface.Name)"
+          Write-Host "  Description: $($interface.InterfaceDescription)"
+          Write-Host "  Status: $($interface.Status)"
+          Write-Host "  Speed: $($interface.LinkSpeed)"
+          Write-Host "  MAC Address: $($interface.MacAddress)"
+          Write-Host "  Interface Index: $($interface.ifIndex)"
+          
+          # Get IP configuration
+          $ipConfigs = Get-NetIPAddress -InterfaceIndex $interface.ifIndex -AddressFamily IPv4
+          foreach ($ipConfig in $ipConfigs) {
+            if ($ipConfig.IPAddress -notlike "169.254.*" -and $ipConfig.IPAddress -notlike "127.*") {
+              Write-Host "  IPv4 Address: $($ipConfig.IPAddress)/$($ipConfig.PrefixLength)"
+            }
+          }
+          
+          # Get IPv6 configuration
+          $ipv6Configs = Get-NetIPAddress -InterfaceIndex $interface.ifIndex -AddressFamily IPv6
+          foreach ($ipv6Config in $ipv6Configs) {
+            if ($ipv6Config.IPAddress -notlike "fe80:*" -and $ipv6Config.IPAddress -notlike "::1") {
+              Write-Host "  IPv6 Address: $($ipv6Config.IPAddress)/$($ipv6Config.PrefixLength)"
+            }
+          }
+          
+          # Get DNS servers
+          $dnsServers = Get-DnsClientServerAddress -InterfaceIndex $interface.ifIndex -AddressFamily IPv4
+          if ($dnsServers.ServerAddresses) {
+            Write-Host "  DNS Servers: $($dnsServers.ServerAddresses -join ', ')"
+          }
+          
+          Write-Host ""
+        }
+      register: network_interfaces
+      changed_when: false
+
+    - name: Display Network Interfaces
+      debug:
+        msg: "{{ network_interfaces.stdout }}"
+
+    # ========================================
+    # PORT SECURITY ANALYSIS
+    # ========================================
+    - name: Analyze Port Security
+      win_shell: |
+        Write-Host "=== PORT SECURITY ANALYSIS ==="
+        Write-Host ""
+        
+        # Get all listening ports
+        $listeningPorts = Get-NetTCPConnection -State Listen | Sort-Object LocalPort
+        
+        Write-Host "SECURITY ANALYSIS BY PORT:"
+        Write-Host "=========================="
+        
+        $highRiskPorts = @(21, 22, 23, 25, 3389, 445, 135, 139)
+        $mediumRiskPorts = @(80, 443, 8080, 8443, 5985, 5986)
+        
+        foreach ($port in $listeningPorts) {
+          $portNumber = $port.LocalPort
+          $localAddress = if ($port.LocalAddress -eq "0.0.0.0") { "ALL INTERFACES" } else { $port.LocalAddress }
+          
+          Write-Host "Port $portNumber ($localAddress):"
+          
+          # Security risk assessment
+          if ($portNumber -in $highRiskPorts) {
+            Write-Host "  Security Risk: 🔴 HIGH RISK"
+            Write-Host "  Recommendation: Ensure proper authentication and encryption"
+          } elseif ($portNumber -in $mediumRiskPorts) {
+            Write-Host "  Security Risk: 🟡 MEDIUM RISK"
+            Write-Host "  Recommendation: Verify access controls and monitoring"
+          } else {
+            Write-Host "  Security Risk: 🟢 LOW RISK"
+            Write-Host "  Recommendation: Standard monitoring recommended"
+          }
+          
+          # Get process information for security context
+          try {
+            $process = Get-Process -Id $port.OwningProcess -ErrorAction SilentlyContinue
+            if ($process) {
+              Write-Host "  Process Owner: $($process.ProcessName)"
+              
+              # Check if process is running as SYSTEM
+              if ($process.ProcessName -eq "System" -or $process.ProcessName -eq "svchost") {
+                Write-Host "  Process Context: System Service"
+              } else {
+                Write-Host "  Process Context: User Application"
+              }
+            }
+          } catch {
+            Write-Host "  Process Owner: Unknown"
+          }
+          
+          Write-Host ""
+        }
+        
+        # Summary
+        Write-Host "SECURITY SUMMARY:"
+        Write-Host "================="
+        $highRiskCount = ($listeningPorts | Where-Object {$_.LocalPort -in $highRiskPorts}).Count
+        $mediumRiskCount = ($listeningPorts | Where-Object {$_.LocalPort -in $mediumRiskPorts}).Count
+        $lowRiskCount = ($listeningPorts | Where-Object {$_.LocalPort -notin ($highRiskPorts + $mediumRiskPorts)}).Count
+        
+        Write-Host "High Risk Ports: $highRiskCount"
+        Write-Host "Medium Risk Ports: $mediumRiskCount"
+        Write-Host "Low Risk Ports: $lowRiskCount"
+        Write-Host "Total Listening Ports: $($listeningPorts.Count)"
+      register: port_security
+      changed_when: false
+
+    - name: Display Port Security Analysis
+      debug:
+        msg: "{{ port_security.stdout }}"
+
+    # ========================================
+    # NETWORK CONNECTIVITY TEST
+    # ========================================
+    - name: Test Network Connectivity
+      win_shell: |
+        Write-Host "=== NETWORK CONNECTIVITY TEST ==="
+        Write-Host ""
+        
+        # Test common external services
+        $testTargets = @(
+          @{Name="Google DNS"; Address="8.8.8.8"},
+          @{Name="Cloudflare DNS"; Address="1.1.1.1"},
+          @{Name="Google"; Address="google.com"},
+          @{Name="Microsoft"; Address="microsoft.com"}
+        )
+        
+        Write-Host "EXTERNAL CONNECTIVITY TESTS:"
+        Write-Host "============================"
+        
+        foreach ($target in $testTargets) {
+          try {
+            $pingResult = Test-Connection -ComputerName $target.Address -Count 1 -Quiet
+            if ($pingResult) {
+              Write-Host "  $($target.Name) ($($target.Address)): ✅ REACHABLE"
+            } else {
+              Write-Host "  $($target.Name) ($($target.Address)): ❌ UNREACHABLE"
+            }
+          } catch {
+            Write-Host "  $($target.Name) ($($target.Address)): ❌ UNREACHABLE"
+          }
+        }
+        
+        Write-Host ""
+        Write-Host "LOCAL NETWORK SCAN:"
+        Write-Host "==================="
+        
+        # Get local network range
+        $localIP = Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.IPAddress -notlike "169.254.*" -and $_.IPAddress -notlike "127.*"} | Select-Object -First 1
+        if ($localIP) {
+          $networkPrefix = $localIP.IPAddress -replace "\.\d+$", ""
+          Write-Host "Scanning local network: $networkPrefix.0/24"
+          
+          # Test a few common local addresses
+          $localTargets = @("$networkPrefix.1", "$networkPrefix.254", "$networkPrefix.100")
+          
+          foreach ($target in $localTargets) {
+            try {
+              $pingResult = Test-Connection -ComputerName $target -Count 1 -Quiet
+              if ($pingResult) {
+                Write-Host "  $target: ✅ REACHABLE"
+              } else {
+                Write-Host "  $target: ❌ UNREACHABLE"
+              }
+            } catch {
+              Write-Host "  $target: ❌ UNREACHABLE"
+            }
+          }
+        }
+      register: connectivity_test
+      changed_when: false
+
+    - name: Display Connectivity Test
+      debug:
+        msg: "{{ connectivity_test.stdout }}"
+
+    # ========================================
+    # NETWORK SCAN SUMMARY
+    # ========================================
+    - name: Generate Network Scan Summary
+      win_shell: |
+        Write-Host "========================================"
+        Write-Host "NETWORK PORT SCAN SUMMARY"
+        Write-Host "========================================"
+        Write-Host "Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        Write-Host "Hostname: $env:COMPUTERNAME"
+        Write-Host ""
+        
+        # Count different types of connections
+        $tcpListen = (Get-NetTCPConnection -State Listen).Count
+        $tcpEstablished = (Get-NetTCPConnection -State Established).Count
+        $udpEndpoints = (Get-NetUDPEndpoint).Count
+        
+        Write-Host "SCAN RESULTS:"
+        Write-Host "============="
+        Write-Host "TCP Listening Ports: $tcpListen"
+        Write-Host "TCP Established Connections: $tcpEstablished"
+        Write-Host "UDP Endpoints: $udpEndpoints"
+        Write-Host "Total Network Endpoints: $($tcpListen + $tcpEstablished + $udpEndpoints)"
+        Write-Host ""
+        Write-Host "🔴 High Risk Ports: Check authentication and encryption"
+        Write-Host "�� Medium Risk Ports: Verify access controls"
+        Write-Host "🟢 Low Risk Ports: Standard monitoring"
+        Write-Host ""
+        Write-Host "========================================"
+        Write-Host "Network port scan completed successfully!"
+        Write-Host "========================================"
+      register: scan_summary
+      changed_when: false
+
+    - name: Display Network Scan Summary
+      debug:
+        msg: "{{ scan_summary.stdout }}"
