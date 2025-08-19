@@ -1,7 +1,9 @@
 ---
-- name: Gather Dell Switch Info
+- name: Gather Dell Switch Info (Generic CLI)
   hosts: all
   gather_facts: no
+  collections:
+    - ansible.netcommon
 
   tasks:
     - name: Run "show version"
@@ -9,13 +11,8 @@
         command: show version
       register: version_info
 
-    - name: Run "show system uptime"
-      ansible.netcommon.cli_command:
-        command: show system uptime
-      register: uptime_info
-
-    - name: Display device info
+    - name: Print output
       debug:
         msg:
-          - "Version Info: {{ version_info.stdout }}"
-          - "Uptime Info: {{ uptime_info.stdout }}"
+          - "Host: {{ inventory_hostname }}"
+          - "{{ version_info.stdout }}"
