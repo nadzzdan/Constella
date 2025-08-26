@@ -15,7 +15,7 @@
   become: no
   
   vars:
-    autosage_api_url: "{{ autosage_api_url | default('http://10.50.0.33:8007/api/report/') }}"
+    autosage_api_endpoint: "{{ autosage_api_url | default('http://10.50.0.33:8007/api/report/') }}"
     autosage_debug: "{{ autosage_debug | default('false') }}"
     original_playbook: "Windows-system-check.yml"
     original_playbook_name: "Windows System Check"
@@ -29,7 +29,7 @@
           
           Original Playbook: {{ original_playbook }}
           Source Repository: https://github.com/nadzzdan/Constella
-          AutoSage API: {{ autosage_api_url }}
+          AutoSage API: {{ autosage_api_endpoint }}
           Target Hosts: {{ ansible_play_hosts }}
           Integration Mode: Enhanced
           
@@ -79,7 +79,7 @@
     # AutoSage Enhanced: Send Windows data to AutoSage for AI analysis
     - name: Send Windows data to AutoSage for AI analysis
       uri:
-        url: "{{ autosage_api_url }}"
+        url: "{{ autosage_api_endpoint }}"
         method: POST
         headers:
           Content-Type: application/json
@@ -130,7 +130,7 @@
           ========================================
           Host: {{ inventory_hostname }}
           Timestamp: {{ ansible_date_time.iso8601 }}
-          AutoSage API: {{ autosage_api_url }}
+          AutoSage API: {{ autosage_api_endpoint }}
           Source: https://github.com/nadzzdan/Constella
           
           === WINDOWS SYSTEM INFORMATION ===
@@ -180,12 +180,12 @@
           Source Repository: https://github.com/nadzzdan/Constella
           Hosts: {{ ansible_play_hosts }}
           Tasks Executed: {{ ansible_play_hosts | length }}
-          AutoSage API: {{ autosage_api_url }}
+          AutoSage API: {{ autosage_api_endpoint }}
           Timestamp: {{ ansible_date_time.iso8601 }}
           
           ✅ AutoSage integration enabled
           📊 Windows metrics sent to AutoSage for AI analysis
-          🤖 AI-powered Windows insights generated
+          �� AI-powered Windows insights generated
           📈 Enhanced Windows monitoring active
           🌐 View results at: http://10.50.0.33:8007
           
