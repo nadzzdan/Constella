@@ -1,192 +1,93 @@
 ---
-# AutoSage Enhanced Version of: Windows-system-check.yml
-# ===================================================
-#
-# This playbook includes AutoSage integration for AI-powered analysis
-# of your Windows system monitoring tasks.
-#
-# Original playbook: Windows-system-check.yml
-# Source: https://github.com/nadzzdan/Constella
-# Enhanced with AutoSage: {{ ansible_date_time.iso8601 }}
-
-- name: AutoSage Enhanced - Windows System Check
+- name: Windows System Resources Check
   hosts: "{{ target_hosts | default('all') }}"
   gather_facts: yes
   become: no
   
-  vars:
-    autosage_api_endpoint: "{{ autosage_api_url | default('http://10.50.0.33:8007/api/report/') }}"
-    autosage_debug: "{{ autosage_debug | default('false') }}"
-    original_playbook: "Windows-system-check.yml"
-    original_playbook_name: "Windows System Check"
-    
-  pre_tasks:
-    - name: Display AutoSage integration information
-      debug:
-        msg: |
-          🚀 AutoSage Enhanced Windows System Check
-          =========================================
-          
-          Original Playbook: {{ original_playbook }}
-          Source Repository: https://github.com/nadzzdan/Constella
-          AutoSage API: {{ autosage_api_endpoint }}
-          Target Hosts: {{ ansible_play_hosts }}
-          Integration Mode: Enhanced
-          
-          AutoSage will automatically analyze Windows system data
-          and provide AI-powered insights for Windows optimization.
-
   tasks:
-    # Original Windows system check tasks
-    - name: Get Windows system information
+    - name: Get CPU Information
       win_shell: |
-        Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, TotalPhysicalMemory, CsProcessors
-      register: windows_system_info
+        Write-Host "=== CPU INFORMATION ==="
+        $cpu = Get-WmiObject -Class Win32_Processor
+        Write-Host "CPU Model: $($cpu.Name)"
+        Write-Host "CPU Cores: $($cpu.NumberOfCores)"
+        Write-Host "CPU Threads: $($cpu.NumberOfLogicalProcessors)"
+        
+        $cpuUsage = Get-Counter '\Processor(_Total)\% Processor Time' | Select-Object -ExpandProperty CounterSamples | Select-Object -ExpandProperty CookedValue
+        Write-Host "CPU Usage: $([math]::Round($cpuUsage, 1))%"
+        
+        $loadAvg = Get-Counter '\System\Processor Queue Length' | Select-Object -ExpandProperty CounterSamples | Select-Object -ExpandProperty CookedValue
+        Write-Host "Processor Queue Length: $([math]::Round($loadAvg, 2))"
+      register: cpu_info
+      changed_when: false
 
-    - name: Get Windows CPU information
+    - name: Get Memory Information
       win_shell: |
-        Get-Counter '\Processor(_Total)\% Processor Time' | Select-Object -ExpandProperty CounterSamples | Select-Object CookedValue
-        Get-WmiObject -Class Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors
-      register: windows_cpu_info
+        Write-Host "=== MEMORY INFORMATION ==="
+        $memory = Get-WmiObject -Class Win32_ComputerSystem
+        $totalRAM = [math]::Round($memory.TotalPhysicalMemory / 1GB, 2)
+        Write-Host "Total RAM: ${totalRAM}GB"
+        
+        $os = Get-WmiObject -Class Win32_OperatingSystem
+        $usedRAM = [math]::Round(($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) * 1024 / 1GB, 2)
+        $freeRAM = [math]::Round($os.FreePhysicalMemory * 1024 / 1GB, 2)
+        Write-Host "Used RAM: ${usedRAM}GB"
+        Write-Host "Free RAM: ${freeRAM}GB"
+        
+        $ramUsage = [math]::Round(($usedRAM / $totalRAM) * 100, 1)
+        Write-Host "RAM Usage: ${ramUsage}%"
+      register: memory_info
+      changed_when: false
 
-    - name: Get Windows memory information
+    - name: Get Storage Information
       win_shell: |
-        Get-Counter '\Memory\Available MBytes' | Select-Object -ExpandProperty CounterSamples | Select-Object CookedValue
-        Get-WmiObject -Class Win32_OperatingSystem | Select-Object TotalVisibleMemorySize, FreePhysicalMemory
-      register: windows_memory_info
+        Write-Host "=== STORAGE INFORMATION ==="
+        Write-Host "Disk Usage:"
+        Get-WmiObject -Class Win32_LogicalDisk | ForEach-Object {
+          $sizeGB = [math]::Round($_.Size / 1GB, 2)
+          $freeGB = [math]::Round($_.FreeSpace / 1GB, 2)
+          $usedGB = $sizeGB - $freeGB
+          $usagePercent = [math]::Round(($usedGB / $sizeGB) * 100, 1)
+          Write-Host "  Drive $($_.DeviceID): $sizeGB GB total, $usedGB GB used, $freeGB GB free ($usagePercent% used)"
+        }
+      register: storage_info
+      changed_when: false
 
-    - name: Get Windows disk information
+    - name: Get System Information
       win_shell: |
-        Get-WmiObject -Class Win32_LogicalDisk | Select-Object DeviceID, Size, FreeSpace, @{Name="FreePercent";Expression={[math]::Round(($_.FreeSpace/$_.Size)*100,2)}}
-      register: windows_disk_info
+        Write-Host "=== SYSTEM INFORMATION ==="
+        $computer = Get-WmiObject -Class Win32_ComputerSystem
+        Write-Host "Hostname: $($computer.Name)"
+        Write-Host "OS: $($computer.Caption) $($computer.OSArchitecture)"
+        Write-Host "Manufacturer: $($computer.Manufacturer)"
+        Write-Host "Model: $($computer.Model)"
+        
+        $os = Get-WmiObject -Class Win32_OperatingSystem
+        Write-Host "Kernel: $($os.Version)"
+        Write-Host "Last Boot: $($os.ConvertToDateTime($os.LastBootUpTime))"
+        
+        $uptime = (Get-Date) - $os.ConvertToDateTime($os.LastBootUpTime)
+        Write-Host "Uptime: $($uptime.Days) days, $($uptime.Hours) hours, $($uptime.Minutes) minutes"
+      register: system_info
+      changed_when: false
 
-    - name: Get Windows services status
-      win_shell: |
-        Get-Service | Where-Object {$_.Status -eq "Running"} | Select-Object Name, DisplayName, Status | Sort-Object Name
-      register: windows_services_status
-
-    # AutoSage Enhanced: Additional Windows metrics
-    - name: Get enhanced Windows metrics
-      win_shell: |
-        Write-Host "=== ENHANCED WINDOWS METRICS ==="
-        Write-Host "System Uptime: $((Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime)"
-        Write-Host "Active Processes: $(Get-Process | Measure-Object | Select-Object -ExpandProperty Count)"
-        Write-Host "Network Connections: $(Get-NetTCPConnection | Measure-Object | Select-Object -ExpandProperty Count)"
-        Write-Host "Event Log Errors (Last 24h): $(Get-EventLog -LogName System -EntryType Error -After (Get-Date).AddDays(-1) | Measure-Object | Select-Object -ExpandProperty Count)"
-        Write-Host "Windows Updates Status: $(Get-HotFix | Sort-Object -Property InstalledOn -Descending | Select-Object -First 1 | Select-Object -ExpandProperty HotFixID)"
-      register: enhanced_windows_metrics
-
-    # AutoSage Enhanced: Send Windows data to AutoSage for AI analysis
-    - name: Send Windows data to AutoSage for AI analysis
-      uri:
-        url: "{{ autosage_api_endpoint }}"
-        method: POST
-        headers:
-          Content-Type: application/json
-        body: |
-          {
-            "task": "AutoSage Enhanced Windows System Check",
-            "host": "{{ inventory_hostname }}",
-            "status": "ok",
-            "result": {
-              "changed": false,
-              "msg": "Windows system check completed with AutoSage AI analysis",
-              "test_mode": false,
-              "autosage_enhanced": true,
-              "original_playbook": "{{ original_playbook }}",
-              "source_repository": "https://github.com/nadzzdan/Constella",
-              "windows_metrics": {
-                "windows_system_info": "{{ windows_system_info.stdout }}",
-                "windows_cpu_info": "{{ windows_cpu_info.stdout }}",
-                "windows_memory_info": "{{ windows_memory_info.stdout }}",
-                "windows_disk_info": "{{ windows_disk_info.stdout }}",
-                "windows_services_status": "{{ windows_services_status.stdout }}",
-                "enhanced_windows_metrics": "{{ enhanced_windows_metrics.stdout }}"
-              },
-              "performance_data": {
-                "hostname": "{{ inventory_hostname }}",
-                "os": "{{ ansible_os_name | default('Windows') }}",
-                "architecture": "{{ ansible_architecture | default('unknown') }}",
-                "timestamp": "{{ ansible_date_time.iso8601 }}",
-                "playbook_source": "github.com/nadzzdan/Constella",
-                "windows_monitoring": true
-              },
-              "stdout": "Windows system check completed with AutoSage AI analysis",
-              "stderr": "",
-              "rc": 0
-            }
-          }
-        timeout: 30
-        status_code: [200, 201, 400, 500]
-      register: autosage_report
-      ignore_errors: yes
-
-    - name: Display Complete Windows Report with AutoSage Integration
+    - name: Display Complete System Report
       debug:
         msg: |
           
           ========================================
-          AUTOSAGE ENHANCED WINDOWS SYSTEM CHECK
+          WINDOWS SYSTEM RESOURCES - {{ inventory_hostname }}
           ========================================
-          Host: {{ inventory_hostname }}
-          Timestamp: {{ ansible_date_time.iso8601 }}
-          AutoSage API: {{ autosage_api_endpoint }}
-          Source: https://github.com/nadzzdan/Constella
-          
-          === WINDOWS SYSTEM INFORMATION ===
-          {{ windows_system_info.stdout }}
-          
-          === CPU INFORMATION ===
-          {{ windows_cpu_info.stdout }}
-          
-          === MEMORY INFORMATION ===
-          {{ windows_memory_info.stdout }}
-          
-          === DISK INFORMATION ===
-          {{ windows_disk_info.stdout }}
-          
-          === SERVICES STATUS ===
-          {{ windows_services_status.stdout }}
-          
-          === ENHANCED WINDOWS METRICS ===
-          {{ enhanced_windows_metrics.stdout }}
-          
-          ========================================
-          AUTOSAGE AI ANALYSIS
-          ========================================
-          {% if autosage_report.status in [200, 201] %}
-          ✅ AutoSage AI analysis completed successfully
-          Report ID: {{ autosage_report.json.report_id | default('N/A') }}
-          AI Insights: {{ autosage_report.json.ai_analysis | default('Available in AutoSage dashboard') }}
-          {% else %}
-          ⚠️  AutoSage AI analysis status: {{ autosage_report.status }}
-          Note: Windows check completed, but AI analysis may not be available
-          {% endif %}
-          
-          ========================================
-          ✅ AutoSage Enhanced Windows Check Complete!
-          ========================================
-          
-          View detailed AI analysis at: http://10.50.0.33:8007
-
-  post_tasks:
-    - name: Generate AutoSage integration summary
-      debug:
-        msg: |
-          =========================================
-          AUTOSAGE INTEGRATION SUMMARY
-          =========================================
-          Playbook: {{ original_playbook }}
-          Source Repository: https://github.com/nadzzdan/Constella
-          Hosts: {{ ansible_play_hosts }}
-          Tasks Executed: {{ ansible_play_hosts | length }}
-          AutoSage API: {{ autosage_api_endpoint }}
           Timestamp: {{ ansible_date_time.iso8601 }}
           
-          ✅ AutoSage integration enabled
-          📊 Windows metrics sent to AutoSage for AI analysis
-          �� AI-powered Windows insights generated
-          📈 Enhanced Windows monitoring active
-          🌐 View results at: http://10.50.0.33:8007
+          {{ cpu_info.stdout }}
           
-          =========================================
+          {{ memory_info.stdout }}
+          
+          {{ storage_info.stdout }}
+          
+          {{ system_info.stdout }}
+          
+          ========================================
+          Windows system check completed successfully!
+          ========================================
