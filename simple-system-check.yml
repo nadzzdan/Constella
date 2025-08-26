@@ -1,48 +1,15 @@
 ---
-# AutoSage Enhanced Version of: simple-system-check.yml
-# ===================================================
-#
-# This playbook includes AutoSage integration for AI-powered analysis
-# of your Ansible task results.
-#
-# Original playbook: simple-system-check.yml
-# Source: https://github.com/nadzzdan/Constella/blob/main/simple-system-check.yml
-# Enhanced with AutoSage: {{ ansible_date_time.iso8601 }}
-
-- name: AutoSage Enhanced - Simple System Resources Check
+- name: Simple System Resources Check
   hosts: "{{ target_hosts | default('all') }}"
   gather_facts: yes
   become: no
   
-  vars:
-    autosage_api_url: "{{ autosage_api_url | default('http://10.50.0.33:8007/api/report/') }}"
-    autosage_debug: "{{ autosage_debug | default('false') }}"
-    original_playbook: "simple-system-check.yml"
-    original_playbook_name: "Simple System Resources Check"
-    
-  pre_tasks:
-    - name: Display AutoSage integration information
-      debug:
-        msg: |
-          🚀 AutoSage Enhanced System Check
-          =================================
-          
-          Original Playbook: {{ original_playbook }}
-          Source Repository: https://github.com/nadzzdan/Constella
-          AutoSage API: {{ autosage_api_url }}
-          Target Hosts: {{ ansible_play_hosts }}
-          Integration Mode: Enhanced
-          
-          AutoSage will automatically analyze system resource data
-          and provide AI-powered insights for optimization.
-
   tasks:
-    # Original tasks from simple-system-check.yml
     - name: Get CPU Information
       shell: |
         echo "CPU Model: $(grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2 | xargs)"
         echo "CPU Cores: $(nproc)"
-        echo "CPU Usage: $(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)%"
+        echo "CPU Usage: $(top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1)%"
         echo "Load Average: $(uptime | awk -F'load average:' '{print $2}' | xargs)"
       register: cpu_info
       changed_when: false
@@ -52,7 +19,7 @@
         echo "Total RAM: $(free -h | grep Mem | awk '{print $2}')"
         echo "Used RAM: $(free -h | grep Mem | awk '{print $3}')"
         echo "Free RAM: $(free -h | grep Mem | awk '{print $4}')"
-        echo "RAM Usage: $(free | grep Mem | awk '{printf "%.1f%%", $3/$2 * 100.0}')"
+        echo "RAM Usage: $(free | grep Mem | awk '{printf \"%.1f%%\", $3/$2 * 100.0}')"
       register: memory_info
       changed_when: false
 
@@ -70,77 +37,14 @@
       register: uptime_info
       changed_when: false
 
-    # AutoSage Enhanced: Additional performance metrics
-    - name: Get Enhanced Performance Metrics
-      shell: |
-        echo "=== ENHANCED PERFORMANCE METRICS ==="
-        echo "Process Count: $(ps aux | wc -l)"
-        echo "Active Connections: $(ss -tuln | wc -l)"
-        echo "Network Interfaces: $(ip addr show | grep -E '^[0-9]+:' | wc -l)"
-        echo "Open Files: $(lsof | wc -l)"
-        echo "System Load (1min): $(cat /proc/loadavg | awk '{print $1}')"
-        echo "System Load (5min): $(cat /proc/loadavg | awk '{print $2}')"
-        echo "System Load (15min): $(cat /proc/loadavg | awk '{print $3}')"
-        echo "Kernel Version: $(uname -r)"
-        echo "Distribution: $(cat /etc/os-release | grep PRETTY_NAME | cut -d'"' -f2)"
-      register: enhanced_metrics
-      changed_when: false
-
-    # AutoSage Enhanced: Send system data to AutoSage for AI analysis
-    - name: Send system data to AutoSage for AI analysis
-      uri:
-        url: "{{ autosage_api_url }}"
-        method: POST
-        headers:
-          Content-Type: application/json
-        body: |
-          {
-            "task": "AutoSage Enhanced System Check",
-            "host": "{{ inventory_hostname }}",
-            "status": "ok",
-            "result": {
-              "changed": false,
-              "msg": "System resources checked with AutoSage AI analysis",
-              "test_mode": false,
-              "autosage_enhanced": true,
-              "original_playbook": "{{ original_playbook }}",
-              "source_repository": "https://github.com/nadzzdan/Constella",
-              "system_metrics": {
-                "cpu_info": "{{ cpu_info.stdout }}",
-                "memory_info": "{{ memory_info.stdout }}",
-                "storage_info": "{{ storage_info.stdout }}",
-                "uptime_info": "{{ uptime_info.stdout }}",
-                "enhanced_metrics": "{{ enhanced_metrics.stdout }}"
-              },
-              "performance_data": {
-                "hostname": "{{ inventory_hostname }}",
-                "os": "{{ ansible_distribution }} {{ ansible_distribution_version }}",
-                "architecture": "{{ ansible_architecture }}",
-                "kernel": "{{ ansible_kernel }}",
-                "timestamp": "{{ ansible_date_time.iso8601 }}",
-                "playbook_source": "github.com/nadzzdan/Constella"
-              },
-              "stdout": "System check completed with AutoSage AI analysis",
-              "stderr": "",
-              "rc": 0
-            }
-          }
-        timeout: 30
-        status_code: [200, 201, 400, 500]
-      register: autosage_report
-      ignore_errors: yes
-
-    - name: Display Complete System Report with AutoSage Integration
+    - name: Display Complete System Report
       debug:
         msg: |
           
           ========================================
-          AUTOSAGE ENHANCED SYSTEM RESOURCES
+          SYSTEM RESOURCES - {{ inventory_hostname }}
           ========================================
-          Host: {{ inventory_hostname }}
           Timestamp: {{ ansible_date_time.iso8601 }}
-          AutoSage API: {{ autosage_api_url }}
-          Source: https://github.com/nadzzdan/Constella
           
           {{ cpu_info.stdout }}
           
@@ -150,44 +54,6 @@
           
           {{ uptime_info.stdout }}
           
-          {{ enhanced_metrics.stdout }}
-          
           ========================================
-          AUTOSAGE AI ANALYSIS
+          ✅ System check completed successfully!
           ========================================
-          {% if autosage_report.status in [200, 201] %}
-          ✅ AutoSage AI analysis completed successfully
-          Report ID: {{ autosage_report.json.report_id | default('N/A') }}
-          AI Insights: {{ autosage_report.json.ai_analysis | default('Available in AutoSage dashboard') }}
-          {% else %}
-          ⚠️  AutoSage AI analysis status: {{ autosage_report.status }}
-          Note: System check completed, but AI analysis may not be available
-          {% endif %}
-          
-          ========================================
-          ✅ AutoSage Enhanced System Check Complete!
-          ========================================
-          
-          View detailed AI analysis at: http://10.50.0.33:8007
-
-  post_tasks:
-    - name: Generate AutoSage integration summary
-      debug:
-        msg: |
-          =========================================
-          AUTOSAGE INTEGRATION SUMMARY
-          =========================================
-          Playbook: {{ original_playbook }}
-          Source Repository: https://github.com/nadzzdan/Constella
-          Hosts: {{ ansible_play_hosts }}
-          Tasks Executed: {{ ansible_play_hosts | length }}
-          AutoSage API: {{ autosage_api_url }}
-          Timestamp: {{ ansible_date_time.iso8601 }}
-          
-          ✅ AutoSage integration enabled
-          📊 System metrics sent to AutoSage for AI analysis
-          🤖 AI-powered insights generated
-          📈 Enhanced performance monitoring active
-          🌐 View results at: http://10.50.0.33:8007
-          
-          =========================================
