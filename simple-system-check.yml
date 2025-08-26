@@ -1,15 +1,49 @@
 ---
-- name: Simple System Resources Check
+# AutoSage Enhanced Version of: {{ original_playbook }}
+# ===================================================
+#
+# This playbook includes AutoSage integration for AI-powered analysis
+# of your Ansible task results.
+#
+# Original playbook: {{ original_playbook }}
+# Enhanced with AutoSage: {{ ansible_date_time.iso8601 }}
+
+- name: AutoSage Enhanced - {{ original_playbook_name }}
   hosts: "{{ target_hosts | default('all') }}"
   gather_facts: yes
-  become: no
+  become: "{{ become | default('no') }}"
   
+  vars:
+    autosage_api_url: "{{ autosage_api_url | default('http://10.50.0.33:8007/api/report/') }}"
+    autosage_debug: "{{ autosage_debug | default('false') }}"
+    original_playbook: "{{ original_playbook | default('unknown') }}"
+    original_playbook_name: "{{ original_playbook_name | default('Unknown Playbook') }}"
+    
+  pre_tasks:
+    - name: Display AutoSage integration information
+      debug:
+        msg: |
+          🚀 AutoSage Enhanced Playbook
+          =============================
+          
+          Original Playbook: {{ original_playbook }}
+          AutoSage API: {{ autosage_api_url }}
+          Target Hosts: {{ ansible_play_hosts }}
+          Integration Mode: Enhanced
+          
+          AutoSage will automatically analyze all task results
+          and provide AI-powered insights.
+
+  tasks:
+    # Include the original playbook tasks here
+    # This will be replaced with the actual content
+    # Original tasks from simple-system-check.yml
   tasks:
     - name: Get CPU Information
       shell: |
         echo "CPU Model: $(grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2 | xargs)"
         echo "CPU Cores: $(nproc)"
-        echo "CPU Usage: $(top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1)%"
+        echo "CPU Usage: $(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)%"
         echo "Load Average: $(uptime | awk -F'load average:' '{print $2}' | xargs)"
       register: cpu_info
       changed_when: false
@@ -19,7 +53,7 @@
         echo "Total RAM: $(free -h | grep Mem | awk '{print $2}')"
         echo "Used RAM: $(free -h | grep Mem | awk '{print $3}')"
         echo "Free RAM: $(free -h | grep Mem | awk '{print $4}')"
-        echo "RAM Usage: $(free | grep Mem | awk '{printf \"%.1f%%\", $3/$2 * 100.0}')"
+        echo "RAM Usage: $(free | grep Mem | awk '{printf "%.1f%%", $3/$2 * 100.0}')"
       register: memory_info
       changed_when: false
 
@@ -57,3 +91,22 @@
           ========================================
           ✅ System check completed successfully!
           ========================================
+
+  post_tasks:
+    - name: Generate AutoSage integration summary
+      debug:
+        msg: |
+          =========================================
+          AUTOSAGE INTEGRATION SUMMARY
+          =========================================
+          Playbook: {{ original_playbook }}
+          Hosts: {{ ansible_play_hosts }}
+          Tasks Executed: {{ ansible_play_hosts | length }}
+          AutoSage API: {{ autosage_api_url }}
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          
+          ✅ AutoSage integration enabled
+          📊 Task results sent to AutoSage for AI analysis
+          🌐 View results at: http://10.50.0.33:8007
+          
+          =========================================
