@@ -1,0 +1,22 @@
+---
+- name: Dell Switch Port Descriptions - Semaphore
+  hosts: "{{ target_hosts | default('dell_switches') }}"
+  gather_facts: no
+  connection: network_cli
+  
+  tasks:
+    - name: Get port descriptions
+      ios_command:
+        commands:
+          - show interfaces description
+      register: port_descriptions
+    
+    - name: Display port descriptions
+      debug:
+        msg: |
+          ============================================
+          Switch: {{ inventory_hostname }} ({{ ansible_host }})
+          ============================================
+          {{ port_descriptions.stdout[0] }}
+          ============================================
+    
