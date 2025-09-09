@@ -1,0 +1,33 @@
+---
+- name: Dell Switch Version Information - Semaphore
+  hosts: "{{ target_hosts | default('dell_switches') }}"
+  gather_facts: no
+  connection: network_cli
+  
+  tasks:
+    - name: Get switch version information
+      ios_command:
+        commands:
+          - show version
+      register: version_output
+    
+    - name: Display version information
+      debug:
+        msg: |
+          ============================================
+          Switch: {{ inventory_hostname }} ({{ ansible_host }})
+          ============================================
+          {{ version_output.stdout[0] }}
+          ============================================
+    
+    - name: Save version info to file (for Semaphore reports)
+      copy:
+        content: |
+          Switch: {{ inventory_hostname }} ({{ ansible_host }})
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          ============================================
+          {{ version_output.stdout[0] }}
+          ============================================
+        dest: "/tmp/semaphore_switch_version_{{ inventory_hostname }}.txt"
+      delegate_to: localhost
+      run_once: false
