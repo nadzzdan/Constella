@@ -1,0 +1,22 @@
+---
+- name: Dell Switch VLAN Information - Semaphore
+  hosts: "{{ target_hosts | default('dell_switches') }}"
+  gather_facts: no
+  connection: network_cli
+  
+  tasks:
+    - name: Get VLAN information
+      ios_command:
+        commands:
+          - show vlan
+      register: vlan_info
+    
+    - name: Display VLAN information
+      debug:
+        msg: |
+          ============================================
+          Switch: {{ inventory_hostname }} ({{ ansible_host }})
+          ============================================
+          {{ vlan_info.stdout[0] }}
+          ============================================
+    
