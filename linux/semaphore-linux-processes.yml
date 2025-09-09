@@ -1,0 +1,46 @@
+---
+- name: Linux Process Information - Semaphore
+  hosts: "{{ target_hosts | default('linux_vms') }}"
+  gather_facts: yes
+  become: no
+  
+  tasks:
+    - name: Get Top CPU Processes
+      shell: |
+        echo "Top 10 CPU Consuming Processes:"
+        ps aux --sort=-%cpu | head -11
+      register: cpu_processes
+      changed_when: false
+
+    - name: Get Top Memory Processes
+      shell: |
+        echo "Top 10 Memory Consuming Processes:"
+        ps aux --sort=-%mem | head -11
+      register: memory_processes
+      changed_when: false
+
+    - name: Get System Services Status
+      shell: |
+        echo "System Services Status:"
+        systemctl list-units --type=service --state=running | head -20
+      register: services_info
+      changed_when: false
+
+    - name: Display Process Information
+      debug:
+        msg: |
+          
+          ========================================
+          PROCESS INFORMATION - {{ inventory_hostname }}
+          ========================================
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          
+          {{ cpu_processes.stdout }}
+          
+          {{ memory_processes.stdout }}
+          
+          {{ services_info.stdout }}
+          
+          ========================================
+          ✅ Process check completed successfully!
+          ========================================
