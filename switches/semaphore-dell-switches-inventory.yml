@@ -3,12 +3,10 @@ all:
     dell_switches:
       hosts:
         LAB-SWITCH-01:
-          ansible_host: 10.0.0.4
+          ansible_host: "{{ switch_01_ip }}"
         LAB-SWITCH-02:
-          ansible_host: 10.0.0.5
+          ansible_host: "{{ switch_02_ip }}"
       vars:
-        ansible_user: janestrada
-        ansible_password: Love2eat
         ansible_connection: network_cli
         ansible_network_os: ios
         ansible_become: no
