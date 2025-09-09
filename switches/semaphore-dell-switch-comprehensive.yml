@@ -1,0 +1,55 @@
+---
+- name: Dell Switch Comprehensive Check - Semaphore
+  hosts: "{{ target_hosts | default('dell_switches') }}"
+  gather_facts: no
+  connection: network_cli
+  
+  tasks:
+    - name: Get switch version information
+      ios_command:
+        commands:
+          - show version
+      register: version_output
+    
+    - name: Get system information
+      ios_command:
+        commands:
+          - show system
+      register: system_output
+    
+    - name: Get VLAN information
+      ios_command:
+        commands:
+          - show vlan
+      register: vlan_info
+    
+    - name: Get port descriptions
+      ios_command:
+        commands:
+          - show interfaces description
+      register: port_descriptions
+    
+    - name: Display comprehensive switch information
+      debug:
+        msg: |
+          ============================================
+          COMPREHENSIVE SWITCH REPORT - {{ inventory_hostname }}
+          ============================================
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          
+          VERSION INFORMATION:
+          {{ version_output.stdout[0] }}
+          
+          SYSTEM INFORMATION:
+          {{ system_output.stdout[0] }}
+          
+          VLAN INFORMATION:
+          {{ vlan_info.stdout[0] }}
+          
+          PORT DESCRIPTIONS:
+          {{ port_descriptions.stdout[0] }}
+          
+          ============================================
+          ✅ Comprehensive check completed successfully!
+          ============================================
+    
