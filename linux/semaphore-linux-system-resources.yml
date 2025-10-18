@@ -37,23 +37,36 @@
       register: uptime_info
       changed_when: false
 
-    - name: Display Complete System Report
+    - name: Display System Report Header
       debug:
-        msg: |
-          
-          ========================================
-          SYSTEM RESOURCES - {{ inventory_hostname }}
-          ========================================
-          Timestamp: {{ ansible_date_time.iso8601 }}
-          
-          {{ cpu_info.stdout }}
-          
-          {{ memory_info.stdout }}
-          
-          {{ storage_info.stdout }}
-          
-          {{ uptime_info.stdout }}
-          
-          ========================================
-          ✅ System check completed successfully!
-          ========================================
+        msg:
+          - "========================================"
+          - "SYSTEM RESOURCES - {{ inventory_hostname }}"
+          - "========================================"
+          - "Timestamp: {{ ansible_date_time.iso8601 }}"
+          - ""
+
+    - name: Display CPU Information
+      debug:
+        var: cpu_info.stdout_lines
+
+    - name: Display Memory Information
+      debug:
+        var: memory_info.stdout_lines
+
+    - name: Display Storage Information
+      debug:
+        var: storage_info.stdout_lines
+
+    - name: Display Uptime Information
+      debug:
+        var: uptime_info.stdout_lines
+
+    - name: Display Report Footer
+      debug:
+        msg:
+          - ""
+          - "========================================"
+          - "✅ System check completed successfully!"
+          - "========================================"
+
