@@ -1,0 +1,240 @@
+---
+- name: Active Directory Health Check - Semaphore
+  hosts: "{{ target_hosts | default('ifive-dc') }}"
+  gather_facts: yes
+  
+  tasks:
+    - name: Get Domain Controller Information
+      win_shell: |
+        $dcInfo = Get-ADDomainController -Server $env:COMPUTERNAME
+        Write-Output "DC Name: $($dcInfo.Name)"
+        Write-Output "Domain: $($dcInfo.Domain)"
+        Write-Output "Forest: $($dcInfo.Forest)"
+        Write-Output "Site: $($dcInfo.Site)"
+        Write-Output "IPv4 Address: $($dcInfo.IPv4Address)"
+        Write-Output "OS Version: $($dcInfo.OperatingSystem)"
+        Write-Output "Global Catalog: $($dcInfo.IsGlobalCatalog)"
+        Write-Output "Read Only: $($dcInfo.IsReadOnly)"
+      register: dc_info
+      changed_when: false
+
+    - name: Check AD Services Status
+      win_shell: |
+        $services = @('ADWS', 'DNS', 'DFS', 'DFSR', 'Netlogon', 'kdc', 'W32Time')
+        Write-Output "Active Directory Services Status:"
+        foreach ($service in $services) {
+          $svc = Get-Service -Name $service -ErrorAction SilentlyContinue
+          if ($svc) {
+            $status = if ($svc.Status -eq 'Running') { '✅' } else { '❌' }
+            Write-Output "$status $($svc.Name): $($svc.Status)"
+          }
+        }
+      register: ad_services
+      changed_when: false
+
+    - name: Check AD Replication Status
+      win_shell: |
+        Write-Output "AD Replication Status:"
+        $replStatus = Get-ADReplicationPartnerMetadata -Target $env:COMPUTERNAME -Scope Domain
+        foreach ($partner in $replStatus) {
+          $status = if ($partner.LastReplicationSuccess) { '✅' } else { '❌' }
+          Write-Output "$status Partner: $($partner.Partner)"
+          Write-Output "   Last Success: $($partner.LastReplicationSuccess)"
+          Write-Output "   Last Attempt: $($partner.LastReplicationAttempt)"
+          Write-Output "   Consecutive Failures: $($partner.ConsecutiveReplicationFailures)"
+        }
+      register: replication_status
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Check FSMO Roles
+      win_shell: |
+        Write-Output "FSMO Roles:"
+        $domain = Get-ADDomain
+        $forest = Get-ADForest
+        Write-Output "Schema Master: $($forest.SchemaMaster)"
+        Write-Output "Domain Naming Master: $($forest.DomainNamingMaster)"
+        Write-Output "PDC Emulator: $($domain.PDCEmulator)"
+        Write-Output "RID Master: $($domain.RIDMaster)"
+        Write-Output "Infrastructure Master: $($domain.InfrastructureMaster)"
+      register: fsmo_roles
+      changed_when: false
+      run_once: true
+
+    - name: Check DNS Health
+      win_shell: |
+        Write-Output "DNS Health Check:"
+        # Check DNS service
+        $dnsService = Get-Service -Name DNS
+        Write-Output "DNS Service: $($dnsService.Status)"
+        
+        # Test DNS resolution
+        $domain = (Get-ADDomain).DNSRoot
+        $dnsTest = Resolve-DnsName -Name $domain -ErrorAction SilentlyContinue
+        if ($dnsTest) {
+          Write-Output "✅ DNS Resolution: Working"
+        } else {
+          Write-Output "❌ DNS Resolution: Failed"
+        }
+        
+        # Check for DNS errors
+        $dnsErrors = Get-WinEvent -LogName "DNS Server" -MaxEvents 10 -ErrorAction SilentlyContinue | Where-Object {$_.LevelDisplayName -eq "Error"}
+        if ($dnsErrors) {
+          Write-Output "⚠️  Recent DNS Errors: $($dnsErrors.Count)"
+        } else {
+          Write-Output "✅ No Recent DNS Errors"
+        }
+      register: dns_health
+      changed_when: false
+
+    - name: Check SYSVOL and NETLOGON Shares
+      win_shell: |
+        Write-Output "Share Status:"
+        $shares = @('SYSVOL', 'NETLOGON')
+        foreach ($share in $shares) {
+          $shareInfo = Get-SmbShare -Name $share -ErrorAction SilentlyContinue
+          if ($shareInfo) {
+            Write-Output "✅ $share Share: Available at $($shareInfo.Path)"
+          } else {
+            Write-Output "❌ $share Share: Not Found"
+          }
+        }
+      register: share_status
+      changed_when: false
+
+    - name: Check Time Synchronization
+      win_shell: |
+        Write-Output "Time Synchronization:"
+        $w32tm = w32tm /query /status
+        Write-Output $w32tm
+        
+        # Check if time is synchronized
+        if ($w32tm -match "Source:") {
+          Write-Output "✅ Time Service: Active"
+        } else {
+          Write-Output "❌ Time Service: Issue Detected"
+        }
+      register: time_sync
+      changed_when: false
+
+    - name: Check AD Database and Log Files
+      win_shell: |
+        Write-Output "AD Database Information:"
+        $ntdsPath = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\NTDS\Parameters")."DSA Database file"
+        $logPath = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\NTDS\Parameters")."Database log files path"
+        
+        if (Test-Path $ntdsPath) {
+          $dbSize = [math]::Round((Get-Item $ntdsPath).Length / 1GB, 2)
+          Write-Output "Database Path: $ntdsPath"
+          Write-Output "Database Size: $dbSize GB"
+        }
+        
+        Write-Output "Log Files Path: $logPath"
+      register: ad_database
+      changed_when: false
+
+    - name: Check Recent AD Errors
+      win_shell: |
+        Write-Output "Recent Active Directory Errors (Last 24 hours):"
+        $errors = Get-WinEvent -FilterHashtable @{
+          LogName='Directory Service'
+          Level=2
+          StartTime=(Get-Date).AddDays(-1)
+        } -MaxEvents 5 -ErrorAction SilentlyContinue
+        
+        if ($errors) {
+          Write-Output "⚠️  Found $($errors.Count) error(s):"
+          foreach ($error in $errors) {
+            Write-Output "   [$($error.TimeCreated)] Event ID: $($error.Id) - $($error.Message.Split("`n")[0])"
+          }
+        } else {
+          Write-Output "✅ No critical errors in the last 24 hours"
+        }
+      register: ad_errors
+      changed_when: false
+
+    - name: Get System Resources
+      win_shell: |
+        $cpu = Get-Counter '\Processor(_Total)\% Processor Time' -SampleInterval 1 -MaxSamples 1
+        $cpuUsage = [math]::Round($cpu.CounterSamples.CookedValue, 2)
+        
+        $os = Get-CimInstance Win32_OperatingSystem
+        $totalRAM = [math]::Round($os.TotalVisibleMemorySize / 1MB, 2)
+        $freeRAM = [math]::Round($os.FreePhysicalMemory / 1MB, 2)
+        $usedRAM = [math]::Round($totalRAM - $freeRAM, 2)
+        $ramPercent = [math]::Round(($usedRAM / $totalRAM) * 100, 2)
+        
+        $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
+        $diskTotal = [math]::Round($disk.Size / 1GB, 2)
+        $diskFree = [math]::Round($disk.FreeSpace / 1GB, 2)
+        $diskUsed = [math]::Round($diskTotal - $diskFree, 2)
+        $diskPercent = [math]::Round(($diskUsed / $diskTotal) * 100, 2)
+        
+        Write-Output "System Resources:"
+        Write-Output "CPU Usage: $cpuUsage%"
+        Write-Output "RAM: $usedRAM GB / $totalRAM GB ($ramPercent%)"
+        Write-Output "Disk C: $diskUsed GB / $diskTotal GB ($diskPercent%)"
+        Write-Output "Uptime: $([math]::Round($os.LastBootUpTime.Subtract((Get-Date)).Duration().TotalDays, 2)) days"
+      register: system_resources
+      changed_when: false
+
+    - name: Display System Report Header
+      debug:
+        msg:
+          - ""
+          - "========================================"
+          - "AD HEALTH CHECK - {{ inventory_hostname }}"
+          - "========================================"
+          - "Timestamp: {{ ansible_date_time.iso8601 }}"
+          - ""
+
+    - name: Display Domain Controller Information
+      debug:
+        var: dc_info.stdout_lines
+
+    - name: Display AD Services Status
+      debug:
+        var: ad_services.stdout_lines
+
+    - name: Display Replication Status
+      debug:
+        var: replication_status.stdout_lines
+      when: replication_status is succeeded
+
+    - name: Display FSMO Roles
+      debug:
+        var: fsmo_roles.stdout_lines
+      run_once: true
+
+    - name: Display DNS Health
+      debug:
+        var: dns_health.stdout_lines
+
+    - name: Display Share Status
+      debug:
+        var: share_status.stdout_lines
+
+    - name: Display Time Synchronization
+      debug:
+        var: time_sync.stdout_lines
+
+    - name: Display AD Database Info
+      debug:
+        var: ad_database.stdout_lines
+
+    - name: Display Recent Errors
+      debug:
+        var: ad_errors.stdout_lines
+
+    - name: Display System Resources
+      debug:
+        var: system_resources.stdout_lines
+
+    - name: Display Report Footer
+      debug:
+        msg:
+          - ""
+          - "========================================"
+          - "✅ AD Health Check Completed"
+          - "========================================"
+
