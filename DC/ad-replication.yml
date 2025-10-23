@@ -1,0 +1,219 @@
+---
+- name: AD Replication Diagnostics - Semaphore
+  hosts: "{{ target_hosts | default('ifive-dc') }}"
+  gather_facts: yes
+  
+  tasks:
+    - name: Check Basic Domain Connectivity
+      win_shell: |
+        Write-Output "=== Basic Domain Connectivity Check ==="
+        try {
+          $domain = Get-ADDomain -ErrorAction Stop
+          Write-Output "✅ Domain: $($domain.DNSRoot)"
+          Write-Output "✅ Domain Functional Level: $($domain.DomainMode)"
+          Write-Output "✅ Forest Functional Level: $((Get-ADForest).ForestMode)"
+          Write-Output ""
+        } catch {
+          Write-Output "❌ Cannot contact domain: $($_.Exception.Message)"
+          Write-Output ""
+        }
+      register: domain_connectivity
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Check Domain Controller Reachability
+      win_shell: |
+        Write-Output "=== Domain Controllers Reachability ==="
+        try {
+          $dcs = Get-ADDomainController -Filter * -ErrorAction Stop
+          foreach ($dc in $dcs) {
+            $ping = Test-Connection -ComputerName $dc.HostName -Count 2 -Quiet
+            $status = if ($ping) { '✅' } else { '❌' }
+            Write-Output "$status DC: $($dc.HostName) - IP: $($dc.IPv4Address)"
+          }
+          Write-Output ""
+        } catch {
+          Write-Output "❌ Cannot enumerate domain controllers: $($_.Exception.Message)"
+          Write-Output ""
+        }
+      register: dc_reachability
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Check Replication Health (Method 1 - repadmin showrepl)
+      win_shell: |
+        Write-Output "=== Replication Status (repadmin showrepl) ==="
+        try {
+          $output = repadmin /showrepl
+          Write-Output $output
+          Write-Output ""
+        } catch {
+          Write-Output "❌ repadmin failed: $($_.Exception.Message)"
+          Write-Output ""
+        }
+      register: repadmin_showrepl
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Check Replication Status (Method 2 - repadmin replsummary)
+      win_shell: |
+        Write-Output "=== Replication Summary (repadmin replsummary) ==="
+        try {
+          $output = repadmin /replsummary
+          Write-Output $output
+          Write-Output ""
+        } catch {
+          Write-Output "❌ repadmin replsummary failed: $($_.Exception.Message)"
+          Write-Output ""
+        }
+      register: repadmin_replsummary
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Check Replication Failures (Method 3 - repadmin failcache)
+      win_shell: |
+        Write-Output "=== Replication Failures (repadmin failcache) ==="
+        try {
+          $output = repadmin /showrepl /errorsonly
+          if ($output -match "error" -or $output -match "fail") {
+            Write-Output "⚠️  Replication errors detected:"
+            Write-Output $output
+          } else {
+            Write-Output "✅ No replication errors found"
+          }
+          Write-Output ""
+        } catch {
+          Write-Output "❌ repadmin errorsonly failed: $($_.Exception.Message)"
+          Write-Output ""
+        }
+      register: replication_failures
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Check Replication Status (Method 4 - PowerShell with Server parameter)
+      win_shell: |
+        Write-Output "=== Replication Status (PowerShell - All Servers) ==="
+        try {
+          $domain = (Get-ADDomain).DNSRoot
+          $dcs = Get-ADDomainController -Filter * -Server $domain
+          
+          foreach ($dc in $dcs) {
+            Write-Output "--- Checking: $($dc.HostName) ---"
+            try {
+              $replStatus = Get-ADReplicationPartnerMetadata -Target $dc.HostName -Server $domain -ErrorAction Stop
+              
+              if ($replStatus) {
+                foreach ($partner in $replStatus) {
+                  $daysSinceSuccess = ((Get-Date) - $partner.LastReplicationSuccess).TotalDays
+                  $status = if ($daysSinceSuccess -lt 1) { '✅' } elseif ($daysSinceSuccess -lt 2) { '⚠️ ' } else { '❌' }
+                  
+                  Write-Output "$status Partner: $($partner.Partner)"
+                  Write-Output "   Last Success: $($partner.LastReplicationSuccess)"
+                  Write-Output "   Last Attempt: $($partner.LastReplicationAttempt)"
+                  Write-Output "   Consecutive Failures: $($partner.ConsecutiveReplicationFailures)"
+                  Write-Output ""
+                }
+              } else {
+                Write-Output "⚠️  No replication partners found for $($dc.HostName)"
+              }
+            } catch {
+              Write-Output "❌ Failed to get replication data for $($dc.HostName): $($_.Exception.Message)"
+            }
+            Write-Output ""
+          }
+        } catch {
+          Write-Output "❌ PowerShell replication check failed: $($_.Exception.Message)"
+          Write-Output ""
+        }
+      register: powershell_replication
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Check AD Replication Queue
+      win_shell: |
+        Write-Output "=== Replication Queue Status ==="
+        try {
+          $queue = repadmin /queue
+          Write-Output $queue
+          Write-Output ""
+        } catch {
+          Write-Output "❌ Cannot check replication queue: $($_.Exception.Message)"
+          Write-Output ""
+        }
+      register: replication_queue
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Check KCC Status
+      win_shell: |
+        Write-Output "=== Knowledge Consistency Checker (KCC) Status ==="
+        try {
+          $kcc = repadmin /kcc
+          Write-Output $kcc
+          Write-Output ""
+        } catch {
+          Write-Output "❌ KCC check failed: $($_.Exception.Message)"
+          Write-Output ""
+        }
+      register: kcc_status
+      changed_when: false
+      ignore_errors: yes
+
+    # Display all results
+    - name: Display Report Header
+      debug:
+        msg:
+          - ""
+          - "=============================================="
+          - "AD REPLICATION DIAGNOSTICS - {{ inventory_hostname }}"
+          - "=============================================="
+          - "Timestamp: {{ ansible_date_time.iso8601 }}"
+          - ""
+
+    - name: Display Domain Connectivity
+      debug:
+        var: domain_connectivity.stdout_lines
+
+    - name: Display DC Reachability
+      debug:
+        var: dc_reachability.stdout_lines
+
+    - name: Display Repadmin Showrepl Results
+      debug:
+        var: repadmin_showrepl.stdout_lines
+
+    - name: Display Repadmin Replsummary Results
+      debug:
+        var: repadmin_replsummary.stdout_lines
+
+    - name: Display Replication Failures
+      debug:
+        var: replication_failures.stdout_lines
+
+    - name: Display PowerShell Replication Status
+      debug:
+        var: powershell_replication.stdout_lines
+
+    - name: Display Replication Queue
+      debug:
+        var: replication_queue.stdout_lines
+
+    - name: Display KCC Status
+      debug:
+        var: kcc_status.stdout_lines
+
+    - name: Display Report Footer
+      debug:
+        msg:
+          - ""
+          - "=============================================="
+          - "✅ AD Replication Diagnostics Completed"
+          - "=============================================="
+          - ""
+          - "TROUBLESHOOTING TIPS:"
+          - "- If domain connectivity fails, check DNS configuration"
+          - "- If DCs are unreachable, check network connectivity"
+          - "- Use 'repadmin /syncall' to force replication"
+          - "- Check Event Viewer for AD replication errors"
+          - "- Verify firewall rules allow AD replication ports"
+          - "=============================================="
