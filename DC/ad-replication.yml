@@ -26,7 +26,7 @@
 
     - name: Display Replication Summary
       debug:
-        msg: "{{ replication_summary.stdout_lines }}"
+        msg: "{{ replication_summary.stdout_lines | select('string') | reject('match', '^\\s*$') | list }}"
 
     - name: Display Report Footer
       debug:
