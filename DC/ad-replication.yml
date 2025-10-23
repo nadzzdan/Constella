@@ -6,29 +6,16 @@
   tasks:
     - name: Check AD Replication Summary
       win_shell: |
-        repadmin /replsummary
+        Write-Host "Replication Status for: $env:COMPUTERNAME"
+        Write-Host "=============================================="
+        Write-Host ""
+        repadmin /replsummary * /bysrc /bydest
       register: replication_summary
       changed_when: false
       ignore_errors: yes
-
-    - name: Display Report Header
-      debug:
-        msg:
-          - ""
-          - "=============================================="
-          - "AD REPLICATION STATUS - {{ inventory_hostname }}"
-          - "=============================================="
-          - "Timestamp: {{ ansible_date_time.iso8601 }}"
-          - ""
+      run_once: true
 
     - name: Display Replication Summary
       debug:
-        var: replication_summary.stdout_lines
-
-    - name: Display Report Footer
-      debug:
-        msg:
-          - ""
-          - "=============================================="
-          - "✅ Replication Check Completed"
-          - "=============================================="
+        msg: "{{ replication_summary.stdout_lines }}"
+      run_once: true
