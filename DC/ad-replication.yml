@@ -2,20 +2,36 @@
 - name: AD Replication Status - Semaphore
   hosts: "{{ target_hosts | default('ifive-dc') }}"
   gather_facts: yes
+  become: yes
+  become_method: runas
+  become_user: SYSTEM
   
   tasks:
     - name: Check AD Replication Summary
       win_shell: |
-        Write-Host "Replication Status for: $env:COMPUTERNAME"
-        Write-Host "=============================================="
-        Write-Host ""
-        repadmin /replsummary * /bysrc /bydest
+        repadmin /replsummary
       register: replication_summary
       changed_when: false
       ignore_errors: yes
-      run_once: true
+
+    - name: Display Report Header
+      debug:
+        msg:
+          - ""
+          - "=============================================="
+          - "AD REPLICATION STATUS - {{ inventory_hostname }}"
+          - "=============================================="
+          - "Timestamp: {{ ansible_date_time.iso8601 }}"
+          - ""
 
     - name: Display Replication Summary
       debug:
         msg: "{{ replication_summary.stdout_lines }}"
-      run_once: true
+
+    - name: Display Report Footer
+      debug:
+        msg:
+          - ""
+          - "=============================================="
+          - "✅ Replication Check Completed"
+          - "=============================================="
