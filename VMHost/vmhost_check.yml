@@ -6,50 +6,50 @@
   tasks:
     - name: Get System Overview
       shell: |
-        sshpass -p '{{ ansible_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ ansible_user }}@{{ inventory_hostname }} 'racadm getsysinfo'
+        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getsysinfo'
       register: system_info
       delegate_to: localhost
       
     - name: Get Firmware Versions
       shell: |
-        sshpass -p '{{ ansible_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ ansible_user }}@{{ inventory_hostname }} 'racadm getversion'
+        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getversion'
       register: firmware_version
       delegate_to: localhost
       
     - name: Get System LED Status
       shell: |
-        sshpass -p '{{ ansible_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ ansible_user }}@{{ inventory_hostname }} 'racadm getled'
+        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getled'
       register: led_status
       delegate_to: localhost
       
     - name: Get iDRAC Network Configuration
       shell: |
-        sshpass -p '{{ ansible_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ ansible_user }}@{{ inventory_hostname }} 'racadm getniccfg'
+        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getniccfg'
       register: nic_config
       delegate_to: localhost
       
     - name: Get Complete System Event Log
       shell: |
-        sshpass -p '{{ ansible_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ ansible_user }}@{{ inventory_hostname }} 'racadm getsel'
+        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getsel'
       register: event_log_full
       delegate_to: localhost
       
     - name: Get Latest System Events
       shell: |
-        sshpass -p '{{ ansible_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ ansible_user }}@{{ inventory_hostname }} 'racadm getsel -o'
+        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getsel -o'
       register: event_log_summary
       delegate_to: localhost
       
     - name: Get Current Power Consumption
       shell: |
-        sshpass -p '{{ ansible_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ ansible_user }}@{{ inventory_hostname }} 'racadm getpminfo'
+        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getpminfo'
       register: power_info
       ignore_errors: yes
       delegate_to: localhost
       
     - name: Get System Configuration
       shell: |
-        sshpass -p '{{ ansible_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ ansible_user }}@{{ inventory_hostname }} 'racadm getconfig -g cfgServerInfo'
+        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getconfig -g cfgServerInfo'
       register: server_config
       ignore_errors: yes
       delegate_to: localhost
