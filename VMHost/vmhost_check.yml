@@ -1,159 +1,63 @@
 ---
-- name: Dell VM Host Health Check (Semaphore)
+- name: Dell VM Host Health Check
   hosts: vmhosts
   gather_facts: no
   
   tasks:
     - name: Get System Overview
       shell: |
-        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getsysinfo'
+        sshpass -p '{{ ansible_password }}' ssh {{ ansible_ssh_common_args }} {{ ansible_user }}@{{ ansible_host }} 'racadm getsysinfo'
       register: system_info
       delegate_to: localhost
       
     - name: Get Firmware Versions
       shell: |
-        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getversion'
+        sshpass -p '{{ ansible_password }}' ssh {{ ansible_ssh_common_args }} {{ ansible_user }}@{{ ansible_host }} 'racadm getversion'
       register: firmware_version
       delegate_to: localhost
       
     - name: Get System LED Status
       shell: |
-        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getled'
+        sshpass -p '{{ ansible_password }}' ssh {{ ansible_ssh_common_args }} {{ ansible_user }}@{{ ansible_host }} 'racadm getled'
       register: led_status
+      delegate_to: localhost
+      
+    - name: Get System Event Log
+      shell: |
+        sshpass -p '{{ ansible_password }}' ssh {{ ansible_ssh_common_args }} {{ ansible_user }}@{{ ansible_host }} 'racadm getsel -o'
+      register: event_log
       delegate_to: localhost
       
     - name: Get iDRAC Network Configuration
       shell: |
-        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getniccfg'
+        sshpass -p '{{ ansible_password }}' ssh {{ ansible_ssh_common_args }} {{ ansible_user }}@{{ ansible_host }} 'racadm getniccfg'
       register: nic_config
       delegate_to: localhost
       
-    - name: Get Complete System Event Log
-      shell: |
-        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getsel'
-      register: event_log_full
-      delegate_to: localhost
-      
-    - name: Get Latest System Events
-      shell: |
-        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getsel -o'
-      register: event_log_summary
-      delegate_to: localhost
-      
-    - name: Get Current Power Consumption
-      shell: |
-        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getpminfo'
-      register: power_info
-      ignore_errors: yes
-      delegate_to: localhost
-      
-    - name: Get System Configuration
-      shell: |
-        sshpass -p '{{ idrac_password }}' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {{ idrac_user }}@{{ inventory_hostname }} 'racadm getconfig -g cfgServerInfo'
-      register: server_config
-      ignore_errors: yes
-      delegate_to: localhost
-      
-    - name: Count Critical Events
-      shell: echo "{{ event_log_full.stdout }}" | grep -ic "Critical" || echo "0"
-      register: critical_count
-      ignore_errors: yes
-      delegate_to: localhost
-      
-    - name: Count Warning Events
-      shell: echo "{{ event_log_full.stdout }}" | grep -ic "Warning" || echo "0"
-      register: warning_count
-      ignore_errors: yes
-      delegate_to: localhost
-      
-    - name: Extract System Model
+    - name: Extract Key Information
       set_fact:
         system_model: "{{ system_info.stdout | regex_search('System Model\\s+=\\s+(.+)', '\\1') | first | default('Unknown') }}"
         host_name: "{{ system_info.stdout | regex_search('Host Name\\s+=\\s+(.+)', '\\1') | first | default('Unknown') }}"
         bios_version: "{{ system_info.stdout | regex_search('System BIOS Version\\s+=\\s+(.+)', '\\1') | first | default('Unknown') }}"
         power_status: "{{ system_info.stdout | regex_search('Power Status\\s+=\\s+(.+)', '\\1') | first | default('Unknown') }}"
-        service_tag: "{{ system_info.stdout | regex_search('Service Tag\\s+=\\s+(.+)', '\\1') | first | default('Unknown') }}"
-      
-    - name: Extract Firmware Info
-      set_fact:
-        idrac_version: "{{ firmware_version.stdout | regex_search('iDRAC Version\\s+=\\s+(.+)', '\\1') | first | default('Unknown') }}"
-        
-    - name: Extract LED Status
-      set_fact:
         led_state: "{{ led_status.stdout | regex_search('LED State :\\t(.+)', '\\1') | first | default('Unknown') }}"
+        idrac_version: "{{ firmware_version.stdout | regex_search('iDRAC Version\\s+=\\s+(.+)', '\\1') | first | default('Unknown') }}"
     
-    # Display Results
-    - name: Display Health Check Report
+    - name: Display Health Report
       debug:
         msg: |
           ==========================================
-          DELL VM HOST HEALTH CHECK REPORT
+          VM HOST HEALTH CHECK - {{ inventory_hostname }}
           ==========================================
-          
-          Target: {{ inventory_hostname }}
+          iDRAC IP: {{ ansible_host }}
           Host Name: {{ host_name }}
           Model: {{ system_model }}
-          Service Tag: {{ service_tag }}
+          BIOS: {{ bios_version }}
+          iDRAC: {{ idrac_version }}
+          Power: {{ power_status }}
+          LED: {{ led_state }} {% if led_state == 'Not-Blinking' %}✓ HEALTHY{% else %}⚠️ CHECK HARDWARE{% endif %}
+          ==========================================
           
+          Latest Events:
+          {{ event_log.stdout_lines[:10] | join('\n') }}
           ==========================================
-          FIRMWARE & VERSIONS
-          ==========================================
-          BIOS Version: {{ bios_version }}
-          iDRAC Version: {{ idrac_version }}
-          
-          ==========================================
-          SYSTEM STATUS
-          ==========================================
-          Power Status: {{ power_status }}
-          LED Status: {{ led_state }}
-          {% if led_state == 'Not-Blinking' %}
-          ✓ LED Status: HEALTHY
-          {% else %}
-          ✗ LED Status: CHECK HARDWARE
-          {% endif %}
-          
-          ==========================================
-          EVENT LOG SUMMARY
-          ==========================================
-          Critical Events: {{ critical_count.stdout.strip() }}
-          Warning Events: {{ warning_count.stdout.strip() }}
-          
-          {% if critical_count.stdout.strip()|int > 0 %}
-          ⚠️  CRITICAL EVENTS DETECTED - Review event log below
-          {% endif %}
-          
-          ==========================================
-          LATEST SYSTEM EVENTS
-          ==========================================
-          {{ event_log_summary.stdout_lines[:20] | join('\n') }}
-          
-          ==========================================
-          iDRAC NETWORK CONFIGURATION
-          ==========================================
-          {{ nic_config.stdout_lines | join('\n') }}
-          
-          ==========================================
-          END OF REPORT
-          ==========================================
-    
-    - name: Save Report to File
-      copy:
-        content: |
-          ==========================================
-          DELL VM HOST HEALTH CHECK REPORT
-          ==========================================
-          Generated: {{ ansible_date_time.iso8601 | default('N/A') }}
-          Target: {{ inventory_hostname }}
-          Host Name: {{ host_name }}
-          Model: {{ system_model }}
-          Service Tag: {{ service_tag }}
-          BIOS Version: {{ bios_version }}
-          iDRAC Version: {{ idrac_version }}
-          Power Status: {{ power_status }}
-          LED Status: {{ led_state }}
-          Critical Events: {{ critical_count.stdout.strip() }}
-          Warning Events: {{ warning_count.stdout.strip() }}
-          ==========================================
-        dest: "/tmp/vmhost_health_{{ inventory_hostname }}_{{ ansible_date_time.epoch | default('latest') }}.txt"
-      delegate_to: localhost
-      when: ansible_date_time is defined
