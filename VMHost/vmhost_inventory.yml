@@ -1,0 +1,8 @@
+all:
+  children:
+    vmhost:
+      hosts:
+        aura-vmhost-01:
+          vmhost: "{{ idrac_auravmhost_ip }}"
+      vars:
+        ansible_connection: local
