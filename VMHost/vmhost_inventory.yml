@@ -1,20 +1,12 @@
 ---
-# Dell VM Hosts Inventory - iDRAC Management
-# This inventory uses variables from Semaphore Variable Groups
-
 all:
   children:
     vmhosts:
       hosts:
         aura-vmhost-01:
           ansible_host: "{{ idrac_auravmhost_ip }}"
-          ansible_user: "{{ ansible_user }}"
-          ansible_password: "{{ ansible_password }}"
           ansible_connection: local
           
       vars:
-        # Connection settings
-        ansible_connection: local
-        
-        # SSH options for iDRAC
+        ansible_connection: local        
         ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'
