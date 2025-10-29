@@ -1,6 +1,6 @@
 all:
   children:
-    vmhost:
+    vmhosts:
       hosts:
         aura-vmhost-01:
           vmhost: "{{ idrac_auravmhost_ip }}"
