@@ -44,30 +44,26 @@
         idrac_version: "{{ firmware_version.stdout | regex_search('iDRAC Version\\s+=\\s+(.+)', '\\1') | first | default('Unknown') }}"
     
     # Display Results - Table Format
-    - name: "VM Host Health Check Report"
+    - name: "VM Host Health Check Results"
       debug:
         msg:
           - ""
-          - "╔════════════════════════════════════════════════════════════════╗"
-          - "║           VM HOST HEALTH CHECK REPORT                          ║"
-          - "╠════════════════════════════════════════════════════════════════╣"
-          - "║ Host Name       : {{ host_name | default('Unknown') | ljust(45) }}║"
-          - "║ iDRAC IP        : {{ ansible_host | ljust(45) }}║"
-          - "║ Model           : {{ system_model | default('Unknown') | ljust(45) }}║"
-          - "║ BIOS Version    : {{ bios_version | default('Unknown') | ljust(45) }}║"
-          - "║ iDRAC Version   : {{ idrac_version | default('Unknown') | ljust(45) }}║"
-          - "║ Power Status    : {{ power_status | default('Unknown') | ljust(45) }}║"
-          - "╠════════════════════════════════════════════════════════════════╣"
-          - "║ LED Status      : {{ led_state | default('Unknown') | ljust(45) }}║"
-          - "║ Health          : {% if led_state == 'Not-Blinking' %}✓ HEALTHY{{ ' ' | ljust(38) }}{% else %}⚠️  CHECK HARDWARE{{ ' ' | ljust(31) }}{% endif %}║"
-          - "╚════════════════════════════════════════════════════════════════╝"
+          - "=========================================="
+          - "VM HOST HEALTH CHECK REPORT"
+          - "=========================================="
           - ""
+          - "Host Name        : {{ host_name }}"
+          - "iDRAC IP         : {{ ansible_host }}"
+          - "Model            : {{ system_model }}"
+          - "BIOS Version     : {{ bios_version }}"
+          - "iDRAC Version    : {{ idrac_version }}"
+          - "Power Status     : {{ power_status }}"
+          - ""
+          - "LED Status       : {{ led_state }}"
+          - "Health Status    : {% if led_state == 'Not-Blinking' %}✓ SYSTEM HEALTHY{% else %}⚠️ CHECK HARDWARE{% endif %}"
+          - ""
+          - "=========================================="
     
-    - name: "System Events (Latest 10)"
+    - name: "Latest System Events"
       debug:
-        msg:
-          - ""
-          - "━━━━━━━━━━━━━━━━ SYSTEM EVENTS ━━━━━━━━━━━━━━━━"
-          - "{{ event_log.stdout_lines[:10] | join('\n') }}"
-          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          - ""
+        var: event_log.stdout_lines
